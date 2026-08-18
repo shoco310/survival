@@ -2,29 +2,17 @@ import { store } from '../state';
 import { GAME_CONFIG } from '../config';
 import { computeScore, formatTime } from '../scoring';
 import { WEATHER_META } from '../weather';
-import { shareResult, twitterShareUrl } from '../share';
-import type { EquipmentId } from '../types';
+import { EQUIPMENT_META } from '../equipment';
+import { getRankPreset } from '../share/rankPresets';
+import { generateResultCard } from '../share/ResultCardGenerator';
+import { shareResult, downloadResultCard, twitterShareUrl } from '../share';
 import type { ScreenContext, Unmount } from './context';
-
-const EQUIPMENT_LABEL: Record<EquipmentId, string> = {
-  fire: '🔥 FIRE KIT',
-  food: '🍖 FOOD',
-  shelter: '🏕️ SHELTER',
-};
-
-const FLAVOR_BY_RANK: Record<string, string> = {
-  都会に帰ろう: '無人島はあなたに向いていないかもしれない。\n次はマッチを持ってこよう。',
-  キャンプ初心者: 'なんとか火はついた。\nでも夜はまだ長い。',
-  サバイバー: 'あなたは無人島で一晩を生き延びられそうだ。',
-  ワイルドサバイバー: 'あなたは悪条件の中でも火を起こした。\n今夜は生き延びられそうだ。',
-  サバイバルマスター: '見事な火おこし。\n島の動物たちもあなたを一目置いている。',
-  人類代表: 'プロメテウスもきっと驚く手際。\n人類の火の歴史に、あなたの名が刻まれた。',
-};
 
 export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   const state = store.state;
   const score = computeScore(state);
   const elapsedMs = state.startTime != null && state.finishTime != null ? state.finishTime - state.startTime : 0;
+  const preset = getRankPreset(score.rank);
 
   ctx.setFireVisual({ phase: 'burning', fire: 100 });
   ctx.setAmbient(100);
@@ -61,20 +49,28 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
           ${scoreRow('スピード', score.speed, 20)}
         </div>
 
-        <div class="flavor-text">${(FLAVOR_BY_RANK[score.rank] ?? '').replace(/\n/g, '<br/>')}</div>
+        <div class="flavor-text">${preset.comment.replace(/\n/g, '<br/>')}</div>
 
         <div class="result-meta">
-          <div class="meta-item"><div class="k">🎒 装備</div>${EQUIPMENT_LABEL[state.equipment ?? 'food']}</div>
+          <div class="meta-item"><div class="k">🎒 装備</div>${EQUIPMENT_META[state.equipment ?? 'food'].emoji} ${EQUIPMENT_META[state.equipment ?? 'food'].label}</div>
           <div class="meta-item"><div class="k">🌦️ 天候</div>${WEATHER_META[state.weather].emoji} ${WEATHER_META[state.weather].label}</div>
           <div class="meta-item" style="grid-column:1/-1;"><div class="k">🌿 集めた素材</div>${state.collectedMaterials
             .map((m) => m.emoji)
             .join(' ')}</div>
         </div>
 
+        <div class="card-preview-block">
+          <div class="card-preview-label">シェアするとこんな感じ</div>
+          <div class="card-preview-frame" id="card-preview-frame">
+            <div class="card-preview-loading">カードを生成中…</div>
+          </div>
+        </div>
+
         <div class="result-actions">
-          <button class="btn btn-primary" id="share-btn">結果をシェア</button>
-          <button class="btn btn-twitter" id="twitter-btn">Xでシェア</button>
-          <button class="btn btn-secondary" id="retry-btn">もう一度挑戦</button>
+          <button class="btn btn-primary" id="share-btn">📤 結果をシェア</button>
+          <button class="btn btn-secondary" id="save-btn">🖼️ 結果画像を保存</button>
+          <button class="btn btn-twitter" id="twitter-btn">𝕏 Xでシェア</button>
+          <button class="btn btn-secondary" id="retry-btn">🔥 もう一度挑戦</button>
         </div>
       </div>
     </div>
@@ -90,26 +86,63 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   }, 1900);
 
   const shareBtn = root.querySelector<HTMLButtonElement>('#share-btn')!;
+  const saveBtn = root.querySelector<HTMLButtonElement>('#save-btn')!;
   const twitterBtn = root.querySelector<HTMLButtonElement>('#twitter-btn')!;
   const retryBtn = root.querySelector<HTMLButtonElement>('#retry-btn')!;
+  const previewFrame = root.querySelector<HTMLElement>('#card-preview-frame')!;
+
+  let cardBlob: Blob | null = null;
+  let cardObjectUrl: string | null = null;
+
+  generateResultCard({
+    fireTimeMs: elapsedMs,
+    score: score.total,
+    rank: score.rank,
+    characterImage: preset.characterImage,
+    weather: state.weather,
+    equipment: state.equipment ?? 'food',
+    comment: preset.comment,
+    fireLevel: preset.fireLevel,
+  })
+    .then((blob) => {
+      cardBlob = blob;
+      cardObjectUrl = URL.createObjectURL(blob);
+      previewFrame.innerHTML = `<img src="${cardObjectUrl}" alt="Result Card プレビュー" />`;
+    })
+    .catch(() => {
+      previewFrame.innerHTML = `<div class="card-preview-loading">プレビューを生成できませんでした</div>`;
+    });
 
   const onShare = async () => {
-    const result = await shareResult(elapsedMs, score, state.weather);
+    shareBtn.disabled = true;
+    const originalText = shareBtn.textContent;
+    const result = await shareResult(cardBlob, elapsedMs, score, state.weather);
     if (result === 'copied') {
       shareBtn.textContent = 'コピーしました！';
-      setTimeout(() => (shareBtn.textContent = '結果をシェア'), 1600);
+      setTimeout(() => (shareBtn.textContent = originalText), 1600);
+    } else if (result === 'failed' || result === 'unsupported') {
+      shareBtn.textContent = '画像保存かXでシェアしてね';
+      setTimeout(() => (shareBtn.textContent = originalText), 2000);
     }
+    shareBtn.disabled = false;
+  };
+  const onSave = () => {
+    if (!cardBlob) return;
+    downloadResultCard(cardBlob);
   };
   const onTwitter = () => window.open(twitterShareUrl(elapsedMs, score, state.weather), '_blank', 'noopener');
   const onRetry = () => store.reset();
 
   shareBtn.addEventListener('click', onShare);
+  saveBtn.addEventListener('click', onSave);
   twitterBtn.addEventListener('click', onTwitter);
   retryBtn.addEventListener('click', onRetry);
 
   return () => {
     clearTimeout(revealTimeout);
+    if (cardObjectUrl) URL.revokeObjectURL(cardObjectUrl);
     shareBtn.removeEventListener('click', onShare);
+    saveBtn.removeEventListener('click', onSave);
     twitterBtn.removeEventListener('click', onTwitter);
     retryBtn.removeEventListener('click', onRetry);
   };

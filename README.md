@@ -42,7 +42,11 @@ src/
   materials.ts          # 素材プールの抽選・役割(火口/焚き付け/燃料)ごとの集計・各種係数計算
   scoring.ts             # サバイバル力スコアの計算・タイムフォーマット
   fireCanvas.ts           # Canvasパーティクルシステム（炎・煙・火の粉・雨・葉/砂埃）
-  share.ts                 # Web Share API / X 共有用の文言・URL生成
+  equipment.ts             # 装備（FIRE KIT/FOOD/SHELTER）の表示メタ情報
+  share.ts                  # Web Share API（画像つき） / X 共有用の文言・URL生成・保存
+  share/
+    rankPresets.ts            # ランクごとのキャラクター画像パス・一言診断・火の強さ
+    ResultCardGenerator.ts     # Result Card（1200x630 PNG）をCanvasで生成
   ui.ts                      # 画面共通の小さなヘルパー（天候チップ、タイマー表示、clamp）
   main.ts                     # ルーター（画面のマウント/アンマウント・環境レイヤーの初期化）
   screens/
@@ -156,6 +160,24 @@ http://localhost:5173/?debug=true
 ```
 
 シェア文言のテンプレートやハッシュタグ、共有先URLは [`src/share.ts`](src/share.ts) と `GAME_CONFIG.share`（`url` / `hashtags`）で変更できます。本番URLを変更した場合は`GAME_CONFIG.share.url`と`index.html`のOGP用URLも合わせて更新してください。
+
+## Result Card（プレイ結果の共有画像）
+
+固定のOGP画像とは別に、**プレイヤーごとの結果**を1200×630のPNG画像として毎回動的に生成します（[`src/share/ResultCardGenerator.ts`](src/share/ResultCardGenerator.ts)）。役割分担は以下の通りです。
+
+- **固定OGP画像**（`public/og-image.png`）— ゲームURLそのものをシェアされたときの入口。「あなたは火を起こせるか？」という問いかけ役
+- **Result Card**（動的生成PNG）— 実際にプレイした人が「自分の結果」を見せびらかすための画像。スコア・タイム・ランク・キャラクターを毎回描き直す
+
+結果画面が表示されると同時にCanvasでカードを生成し、下部に縮小プレビュー（「シェアするとこんな感じ」）を表示します。ボタンは4つです。
+
+- **📤 結果をシェア** — `navigator.canShare({ files: [...] })`で画像共有に対応していれば、生成したPNGを`File`化してテキスト・URLと一緒に`navigator.share()`。対応していなければテキストのみの共有、それも無ければクリップボードにコピー、という順にフォールバックします
+- **🖼️ 結果画像を保存** — 生成したPNGをそのままダウンロード（`<a download>`）
+- **𝕏 Xでシェア** — X Web Intent（テキストのみ。Xの仕様上ローカル画像は自動添付できないため、保存した画像を手動添付する運用を想定）
+- **🔥 もう一度挑戦** — リトライ
+
+### キャラクター画像とランク演出
+
+ランクごとのキャラクター画像・一言診断・Result Cardの炎の強さ（`fireLevel: 0〜5`）は [`src/share/rankPresets.ts`](src/share/rankPresets.ts) に集約されています。キャラクター画像本体は `public/characters/*.webp`（透過PNG由来）で、ランクが上がるほど体格・装備（ヘッドバンド／トライバル柄／マント／オーラ）・炎の大きさが増していく一枚絵のシルエットになっています。キャラクターを差し替えたい場合は、同じ`public/characters/`配下のパスに1200×630想定の縦長・透過webp画像を置き換えてください（`ResultCardGenerator`側は画像の縦横比を保ってカード右側に自動フィットします）。
 
 ## OGP（SNSシェア時のカード表示）
 
