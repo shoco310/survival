@@ -62,7 +62,7 @@ export function applyShelterMitigation(multiplier: number, hasShelter: boolean):
   return multiplier + (1 - multiplier) * mitigation;
 }
 
-export function frictionWeatherMultiplier(weather: WeatherId, hasShelter: boolean): number {
+export function rotateWeatherMultiplier(weather: WeatherId, hasShelter: boolean): number {
   const base = GAME_CONFIG.weather.frictionMultiplier[weather];
   return applyShelterMitigation(base, hasShelter);
 }
@@ -74,6 +74,14 @@ export function fireGrowthWeatherMultiplier(weather: WeatherId, hasShelter: bool
     return mitigated * GAME_CONFIG.weather.windBoostMultiplier;
   }
   return mitigated;
+}
+
+/** 雨・嵐が中央の炎に与える、酸素管理とは無関係の常時ダメージ */
+export function passiveFireWeatherDecay(weather: WeatherId, hasShelter: boolean): number {
+  const base = GAME_CONFIG.weather.passiveFireDecayPerSecond[weather];
+  if (base <= 0) return 0;
+  if (!hasShelter) return base;
+  return base * (1 - GAME_CONFIG.weather.shelterMitigation);
 }
 
 const BASE_AMBIENT: Record<WeatherId, { wind: number; rain: number }> = {

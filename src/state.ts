@@ -26,12 +26,18 @@ function createInitialState(): GameState {
     startTime: null,
     finishTime: null,
 
+    firePhase: 'rotate',
     heat: 0,
+    emberPower: 0,
     fire: 0,
     oxygen: 0,
     sparked: false,
 
-    frictionMetrics: { startedAt: 0, finishedAt: null },
+    rotateResetCount: 0,
+    fuelLog: [],
+    fuelMistakes: 0,
+
+    rotateMetrics: { startedAt: 0, finishedAt: null },
     breathMetrics: { totalTicks: 0, safeZoneTicks: 0, extinguishCount: 0 },
 
     overblowWarning: false,

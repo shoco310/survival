@@ -30,8 +30,18 @@ export const GAME_CONFIG = {
     // 強風時、火力がこの値以上なら燃焼速度が逆にブーストされる
     windBoostThreshold: 50,
     windBoostMultiplier: 1.35,
+    // 強風時、火力がこの値未満だと風で消えかける（追加の減少）
+    windWeakFireThreshold: 30,
+    windWeakFireShrinkPerSecond: 3.2,
     // shelter装備時、天候の悪影響をどれだけ軽減するか（0.6 = 60%軽減）
     shelterMitigation: 0.6,
+    // 雨・嵐が中央の炎に与える直接的な減衰（オキシジン管理と無関係に常時かかる）
+    passiveFireDecayPerSecond: {
+      sunny: 0,
+      wind: 0,
+      rain: 1.1,
+      storm: 3.4,
+    } satisfies Record<WeatherId, number>,
   },
 
   // 天候はゲーム開始時に決まった後も、途中で変化する可能性がある
@@ -92,9 +102,8 @@ export const GAME_CONFIG = {
 
   equipment: {
     fire: {
-      // ファイヤースターター：摩擦フェーズの初期熱と上昇速度を強化
-      startingHeat: 45,
-      frictionRateMultiplier: 1.45,
+      // ファイヤースターター：摩擦フェーズの初期熱を強化（上昇速度は rotate.fireKitHeatMultiplier）
+      startingHeat: 40,
     },
     food: {
       // 非常食：体力を維持できるため、熱の自然減衰と再挑戦時のロスが少ない
@@ -145,17 +154,37 @@ export const GAME_CONFIG = {
     missingRoleBaseline: 12,
   },
 
-  friction: {
-    // 1スワイプ（方向転換）あたりの基礎熱上昇量
-    baseSwipeGain: 5,
+  // PHASE 1: 木の棒を中心に円を描いて回す摩擦フェーズ
+  rotate: {
+    // これ未満の角速度(rad/s)はほぼ回転とみなさない（熱がほぼ上がらない）
+    minAngularSpeed: 2.0,
+    // これ以上の角速度は頭打ち
+    maxAngularSpeed: 13,
+    // 角速度1rad/sあたりの摩擦熱上昇/秒の基礎値（火口品質・装備・天候で補正）
+    heatGainPerRadPerSecond: 1.05,
+    // 回転をやめたとき、1秒あたりに減衰する熱量
+    decayPerSecond: 13,
+    // 中心からこの半径未満の操作は無効（棒を横に撫でているだけとみなす）
+    minRadius: 24,
+    // 中心からこの半径を超えた操作は無効（画面端の暴れ防止）
+    maxRadius: 150,
     // 火口(tinder)品質の正規化基準（この値で係数1.0）
     tinderNormalizer: 70,
-    // スワイプと判定する最小移動距離(px)
-    minSwipeDistance: 18,
-    // 入力が無いとき、1秒あたりに減衰する熱量
-    decayPerSecond: 10,
-    // 入力なしとみなすまでの猶予(ms)
-    idleGraceMs: 350,
+    // FIRE KIT装備時、摩擦熱の上昇速度に掛かる倍率
+    fireKitHeatMultiplier: 1.9,
+  },
+
+  // PHASE 2: 摩擦熱100%で火種が生まれた直後の状態
+  ember: {
+    // 火種の初期パワー（この上に素材品質による補正が乗る）
+    initialPowerBase: 30,
+    initialPowerVariance: 10,
+    // 息を吹いていない間、1秒あたりに減衰する火種/火力（小さな火のうちだけ有効）
+    neglectDecayPerSecond: 3.4,
+    // この火力未満は「まだ火種」とみなし、消えると摩擦フェーズへ後戻りする
+    fragileFireThreshold: 32,
+    // 摩擦フェーズへ後戻りするときの熱の初期値（多少は楽になる）
+    resetHeat: 18,
   },
 
   breath: {
@@ -167,9 +196,9 @@ export const GAME_CONFIG = {
     safeZoneMin: 40,
     safeZoneMax: 70,
     // 安全ゾーン内にいるときの基礎火力成長速度（1秒あたり。素材係数で補正される）
-    fireGrowthPerSecond: 11,
+    fireGrowthPerSecond: 9,
     // この火力を境に、成長の主役が焚き付け(kindling)から燃料(fuel)に切り替わる
-    earlyFireThreshold: 45,
+    earlyFireThreshold: 35,
     // 酸素不足（10%未満）のとき、火力が減少する速度
     starveShrinkPerSecond: 6,
     // 吹きすぎ状態に入ったとみなす酸素値
@@ -182,8 +211,22 @@ export const GAME_CONFIG = {
     extinguishShrinkPerSecond: 70,
     // 消火後、再着火時のfireの初期値（食料ボーナスが加算される）
     emberRestartFire: 4,
-    // 火種の初期値（摩擦フェーズ完了直後）
-    initialEmberFire: 5,
+  },
+
+  // PHASE 4: 焚き付け・燃料を実際に炎へドラッグして投入する
+  fuel: {
+    // この火力に到達したら薪投入フェーズへ移行する
+    phaseThreshold: 35,
+    // 炎の中心からこの距離(px)以内にドロップすると受理される
+    dropZoneRadius: 100,
+    // タイミングが正しいときの基礎火力上昇量
+    baseBoost: 15,
+    // タイミングが悪い（早すぎる燃料投入など）ときの火力低下量
+    wrongTimingPenalty: 7,
+    // 火力がこの値未満ならkindling、以上ならfuelがベストタイミング
+    idealSwitchFire: 55,
+    // 手持ちの焚き付け/燃料を使い切ってしまったときに追加で拾える数
+    topUpCount: 2,
   },
 
   score: {
@@ -196,14 +239,14 @@ export const GAME_CONFIG = {
     // 判断力：平均品質と役割バランス（火口+焚き付け+燃料が揃っているか）の重み
     judgementQualityWeight: 0.65,
     judgementBalanceWeight: 0.35,
-    // 火おこし技術：想定される摩擦フェーズ所要時間(秒)。これより速いほど高得点
-    idealFrictionSeconds: 10,
-    frictionPenaltyPerSecond: 5,
-    // 火の管理：消火1回につき減点する割合(0-100点満点中)
-    managementPenaltyPerExtinguish: 18,
+    // 火おこし技術：想定される回転フェーズ所要時間(秒)。これより速いほど高得点
+    idealFrictionSeconds: 14,
+    frictionPenaltyPerSecond: 3,
+    // 火の管理：消火・投入ミス1回につき減点する割合(0-100点満点中)
+    managementPenaltyPerExtinguish: 14,
     // スピード：この秒数以内ならフルスコア、以降1秒ごとに減点
-    speedFullMarkSeconds: 50,
-    speedPenaltyPerSecond: 0.9,
+    speedFullMarkSeconds: 60,
+    speedPenaltyPerSecond: 0.55,
   },
 
   ranks: [

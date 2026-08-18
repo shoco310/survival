@@ -8,11 +8,12 @@
 
 1. **装備選択** — 🔥ファイヤースターター / 🍖非常食 / 🏕️シェルターから1つを選ぶ
 2. **素材集め** — 森の地面に散らばる素材（毎回20種類の中から10〜12個が出現）から4〜5個タップして集める
-3. **摩擦フェーズ** — 画面を左右にすばやくスワイプ（PCはドラッグ）して摩擦熱を100%まで上げる
-4. **息吹きフェーズ** — 火種に息を吹きかけ、酸素ゲージを安全ゾーン（40〜70%）に保ちながら火力を100%まで育てる
-5. **結果画面** — クリアタイム・サバイバル力スコア・ランクを表示し、SNSでシェアできる
+3. **PHASE 1 摩擦** — 画面中央の木の棒の周りを指（PCはマウス）でぐるぐる回し、摩擦熱を100%まで上げる。回転が遅い/止まると熱はすぐ下がる
+4. **PHASE 2〜3 火種→息吹き** — 摩擦熱100%で赤い火種が生まれる。放置すると火種は消えて摩擦フェーズに逆戻り。長押しで息を吹きかけ、酸素を安全ゾーン（40〜70%）に保ちながら小さな炎に育てる
+5. **PHASE 4 薪くべ** — 炎が育ってきたら、集めた焚き付け・燃料を中央の炎へドラッグ＆ドロップ。**投入する順番**（細い枝→太い薪）が炎の育ち方を左右する
+6. **🔥 FIRE!** → **結果画面** — クリアタイム・サバイバル力スコア・ランクを表示し、SNSでシェアできる
 
-天候（晴れ/強風/小雨/激しい雨）はランダムに決まり、**プレイ中に0〜2回変化することもあります**（予兆演出つき）。装備の選び方によって有利不利が変わります。
+火の状態は常に画面中央のビジュアル（木屑→煙→火種→炎→焚き火）と直結しており、ゲージは補助情報として控えめに表示されます。天候（晴れ/強風/小雨/激しい雨）はランダムに決まり、**プレイ中に0〜2回変化することもあります**（予兆演出つき）。雨は素材を湿らせて火力を弱らせ、強風は小さな炎を消しかけ突風を起こし、装備の選び方によって有利不利が変わります。
 
 ## 起動方法
 
@@ -52,11 +53,12 @@ src/
   screens/
     start.ts                 # STEP0 装備選択画面
     gather.ts                 # STEP1 素材集め画面（森の地面スキャッター配置）
-    friction.ts                # STEP2 摩擦フェーズ
-    breath.ts                   # STEP3 息吹きフェーズ
+    firepit.ts                 # PHASE1-4 摩擦→火種→息吹き→薪くべ を1画面で担当
     result.ts                    # 結果画面（スコア・シェア・リトライ）
     debug.ts                      # デバッグパネル
 ```
+
+摩擦（回転）・火種・息吹き・薪くべは体験として地続きなので、画面遷移をはさまず [`src/screens/firepit.ts`](src/screens/firepit.ts) 1つの中でサブフェーズ（`rotate` → `breath` → `fuel`）を切り替えます。中央のビジュアル（回転する棒・木屑・煙・火種・炎）は [`src/fireCanvas.ts`](src/fireCanvas.ts) が一括で描画します。
 
 state / scoring / weather / environment / fire simulation / UI / share を分離しているので、
 「スコア配分だけ変えたい」「天候の効果だけ調整したい」といった変更は該当ファイルだけ触れば完結します。
@@ -70,7 +72,9 @@ state / scoring / weather / environment / fire simulation / UI / share を分離
 | カテゴリ | 主な項目 | 説明 |
 |---|---|---|
 | `weather.probabilities` | 晴れ45 / 強風25 / 小雨20 / 激しい雨10 | ゲーム開始時の天候の出現確率（合計100） |
-| `weather.frictionMultiplier` / `fireGrowthMultiplier` | 各天候ごとの倍率 | 摩擦・火力成長への影響 |
+| `weather.frictionMultiplier` / `fireGrowthMultiplier` | 各天候ごとの倍率 | 回転・火力成長への影響 |
+| `weather.passiveFireDecayPerSecond` | 雨1.1 / 嵐3.4 | 酸素管理と無関係に常時かかる炎への直接ダメージ |
+| `weather.windWeakFireThreshold/ShrinkPerSecond` | 30 / 3.2 | 強風時、小さな炎が消えかける速さ |
 | `weather.shelterMitigation` | 0.6 | シェルター装備時の悪天候軽減率 |
 | `weatherDynamics.transitionCountWeights` | `{0:30, 1:50, 2:20}` | 1プレイ中に天候が何回変化するか（0〜2回）の重み |
 | `weatherDynamics.minGapSeconds/maxGapSeconds` | 16〜48秒 | 天候変化どうしの間隔 |
@@ -79,22 +83,26 @@ state / scoring / weather / environment / fire simulation / UI / share を分離
 | `lightning.*` | 発生間隔・フラッシュ時間 | 激しい雨（storm）時の雷演出 |
 | `wetness.*` | 蓄積/乾燥速度・最大減衰率 | 雨で素材が湿っていく速さと効果減衰 |
 | `nightCycle.breakpoints` | 経過秒数ごとの暗さ | タイムプレッシャー演出（夕方→夜） |
-| `equipment.fire` | `startingHeat: 45`, `frictionRateMultiplier: 1.45` | ファイヤーキットの効果 |
+| `equipment.fire` | `startingHeat: 40` | ファイヤーキットの初期熱ボーナス（回転速度は`rotate.fireKitHeatMultiplier`） |
 | `equipment.food` | `heatDecayMultiplier: 0.6`, `reigniteEmberBonus: 8` | 非常食の効果（消火からの復帰に強い） |
-| `materials.pool` | 各素材の `role`（火口/焚き付け/燃料）と `quality` | 判断力スコアと摩擦・燃焼速度に影響 |
+| `materials.pool` | 各素材の `role`（火口/焚き付け/燃料）と `quality` | 判断力スコアと回転・燃焼速度に影響 |
 | `materials.missingRoleBaseline` | 12 | ある役割を1つも選ばなかった場合の仮の効率値 |
-| `friction.*` | `baseSwipeGain`, `decayPerSecond`, `tinderNormalizer` | 摩擦フェーズの難易度 |
-| `breath.*` | `safeZoneMin/Max`, `earlyFireThreshold`, `overblowDangerMs` | 息吹きフェーズの難易度 |
+| `rotate.*` | `minAngularSpeed`, `heatGainPerRadPerSecond`, `fireKitHeatMultiplier` | PHASE1（回転）の難易度 |
+| `ember.*` | `initialPowerBase`, `neglectDecayPerSecond`, `fragileFireThreshold` | 火種ができた直後の脆さ・放置減衰 |
+| `breath.*` | `safeZoneMin/Max`, `overblowDangerMs` | PHASE3（息吹き）の難易度 |
+| `fuel.*` | `phaseThreshold`, `baseBoost`, `wrongTimingPenalty`, `idealSwitchFire` | PHASE4（薪くべ）の難易度・投入タイミング判定 |
 | `score.weights` | 判断力30 / 技術25 / 管理25 / スピード20 | スコア配分（合計100） |
 | `ranks` | 称号としきい値 | サバイバルランクの境界点 |
 
 ## 素材の役割（火口・焚き付け・燃料）
 
-素材には内部的に3つの役割があり、プレイヤーには表示されません（自分で判断してもらうため）。
+素材には内部的に3つの役割があり、プレイヤーには表示されません（自分で判断してもらうため）。ゲーム開始時に選んだ素材は、火おこし画面にもそのまま地面に散らばって表示されます。
 
-- **Tinder / 火口** — 摩擦フェーズの熱上昇（着火のしやすさ）を主に左右する。枯れ葉・乾いた草・綿毛など
-- **Kindling / 焚き付け** — 息吹きフェーズ序盤（火力45%未満）の成長速度を主に左右する。乾いた小枝・松ぼっくり・樹皮など
-- **Fuel / 燃料** — 息吹きフェーズ終盤（火力45%以上）の成長速度を主に左右する。太い乾燥枝・流木など
+- **Tinder / 火口** — PHASE1（回転）の摩擦熱の上がりやすさを主に左右する。枯れ葉・乾いた草・綿毛など。火種ができる瞬間に燃え尽きて画面から消える
+- **Kindling / 焚き付け** — 息だけで炎を育てる序盤の成長速度を左右し、PHASE4では小さな炎に投入するのに向いている。乾いた小枝・松ぼっくり・樹皮など
+- **Fuel / 燃料** — PHASE4で、ある程度育った炎に投入するのに向いている。太い乾燥枝・流木など
+
+PHASE4では、集めたKindling/Fuelを実際に画面下部のトレイから中央の炎へドラッグして投入します。**投入するタイミング**（炎が小さいうちはKindling、育ってきたらFuel）が合っているかどうかで、火力が伸びるか・煙が増えて火力が落ちるかが決まります（`fuel.idealSwitchFire`が切り替えの目安）。手持ちを使い切ってしまったら「🔦 薪を探しに走る」で追加のKindling/Fuelを調達できますが、その分タイムロスになります。
 
 役割を1つも選ばないと、その役割は`materials.missingRoleBaseline`相当の低い効率として扱われます。特に**燃料を1つも選ばなかった場合、火力80%を超えたあたりで成長が大きく鈍化**します（`materials.ts`の`fireGrowthFactor`）。逆に火口だけを高品質で揃えても、焚き付け・燃料が無ければ着火は速くても炎を大きく育てられません。「火口＋焚き付け＋燃料」のバランスが最も強い組み合わせです。
 
@@ -105,8 +113,8 @@ state / scoring / weather / environment / fire simulation / UI / share を分離
 ゲーム終了時に100点満点の「サバイバル力」を算出します（[`src/scoring.ts`](src/scoring.ts)）。
 
 - **判断力（30点）** — 集めた素材の平均品質（65%）と、火口/焚き付け/燃料をバランスよく揃えられたか（35%）の合算
-- **火おこし技術（25点）** — 摩擦フェーズの所要時間。`score.idealFrictionSeconds` より速いほど満点に近づく
-- **火の管理（25点）** — 息吹きフェーズで酸素を安全ゾーン（40〜70%）に保てた時間の割合。消火（吹きすぎ）1回ごとに `score.managementPenaltyPerExtinguish` 点を減点
+- **火おこし技術（25点）** — PHASE1（回転）の所要時間。`score.idealFrictionSeconds` より速いほど満点に近づく。火種を放置して摩擦フェーズへ後戻りした回数も減点
+- **火の管理（25点）** — 息吹き中に酸素を安全ゾーン（40〜70%）に保てた時間の割合から、消火（吹きすぎ）や薪投入のタイミングミスの回数ぶんを減点
 - **スピード（20点）** — ゲーム開始から成功までの合計タイム。`score.speedFullMarkSeconds` 以内なら満点
 
 合計スコアに応じて `GAME_CONFIG.ranks` からサバイバルランクが決まります（都会に帰ろう 〜 人類代表）。
@@ -136,7 +144,7 @@ URLに `?debug=true` を付けて開くと、画面下部にデバッグパネ�
 http://localhost:5173/?debug=true
 ```
 
-確認できる値: 現在の天候（次の天候変化イベントの進行状況つき）・装備・湿度・集めた素材（役割つき）・摩擦熱・火力・酸素量・火種フラグ・経過時間・摩擦フェーズの所要時間・息吹きフェーズの安全ゾーン滞在時間・消火回数・吹きすぎ警告フラグ。ゲームバランス調整時に使用してください。
+確認できる値: 現在の画面/サブフェーズ・天候（次の天候変化イベントの進行状況つき）・装備・湿度・集めた素材（役割つき）・摩擦熱・火種の勢い・火力・酸素量・火種フラグ・経過時間・PHASE1の所要時間と後戻り回数・息吹きフェーズの安全ゾーン滞在時間・消火回数・薪投入ログと投入ミス回数・吹きすぎ警告フラグ。ゲームバランス調整時に使用してください。
 
 ## SNSシェア設定
 

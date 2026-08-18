@@ -6,7 +6,7 @@ interface Particle {
   life: number;
   maxLife: number;
   size: number;
-  kind: 'flame' | 'smoke' | 'spark' | 'rain' | 'leaf';
+  kind: 'flame' | 'smoke' | 'spark' | 'rain' | 'leaf' | 'dust' | 'sizzle';
   hue: number;
   rotation: number;
   rotationSpeed: number;
@@ -14,14 +14,18 @@ interface Particle {
 
 export interface FireVisualState {
   fire: number; // 0-100
-  phase: 'idle' | 'smoke' | 'ember' | 'burning';
+  phase: 'idle' | 'rotate' | 'ember' | 'burning';
   /** 木々の揺れ・砂埃の強さ 0(無風) 〜 約1.7(嵐) */
   windAmp: number;
   /** 雨粒の強さ 0(なし) 〜 約1.7(嵐) */
   rainAmp: number;
+  /** 回転フェーズでの回転の勢い 0-1（木屑の発生量・棒の見た目の回転速度に反映） */
+  spinSpeed: number;
+  /** 回転フェーズでの摩擦熱 0-100（木屑→煙→火種の段階演出に使う） */
+  frictionHeat: number;
 }
 
-const MAX_PARTICLES = 320;
+const MAX_PARTICLES = 340;
 
 export class FireCanvas {
   private ctx: CanvasRenderingContext2D;
@@ -31,8 +35,16 @@ export class FireCanvas {
   private w = 0;
   private h = 0;
   private dpr = Math.min(window.devicePixelRatio || 1, 2);
-  private state: FireVisualState = { fire: 0, phase: 'idle', windAmp: 0.15, rainAmp: 0 };
+  private state: FireVisualState = {
+    fire: 0,
+    phase: 'idle',
+    windAmp: 0.15,
+    rainAmp: 0,
+    spinSpeed: 0,
+    frictionHeat: 0,
+  };
   private windPhase = 0;
+  private spinAngle = 0;
   private canvas: HTMLCanvasElement;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -82,9 +94,10 @@ export class FireCanvas {
 
   private update(dtMs: number): void {
     const dt = dtMs / 1000;
-    const { fire, phase, windAmp, rainAmp } = this.state;
+    const { fire, phase, windAmp, rainAmp, spinSpeed, frictionHeat } = this.state;
     this.windPhase += dt;
     const windDrift = Math.sin(this.windPhase * 1.3) * windAmp * 40;
+    this.spinAngle += spinSpeed * dt * 22;
 
     if (this.particles.length < MAX_PARTICLES) {
       if (phase === 'burning') {
@@ -92,10 +105,13 @@ export class FireCanvas {
         for (let i = 0; i < emitCount; i++) this.emitFlame(fire, windDrift);
         if (Math.random() < 0.4 + fire / 200) this.emitSpark(fire, windDrift);
         if (Math.random() < 0.25) this.emitSmoke(fire, windDrift);
+        if (rainAmp > 0.3 && fire > 3 && Math.random() < rainAmp * 0.3) this.emitSizzle(fire);
       } else if (phase === 'ember') {
         if (Math.random() < 0.7) this.emitSmoke(10, windDrift);
-      } else if (phase === 'smoke') {
-        if (Math.random() < 0.9) this.emitSmoke(5, windDrift);
+      } else if (phase === 'rotate') {
+        if (spinSpeed > 0.15 && Math.random() < spinSpeed * 0.6) this.emitDust(spinSpeed);
+        const smokeChance = Math.max(0, (frictionHeat - 35) / 65);
+        if (Math.random() < smokeChance * 0.55) this.emitSmoke(4, windDrift);
       }
 
       if (rainAmp > 0.05) {
@@ -113,7 +129,7 @@ export class FireCanvas {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.rotation += p.rotationSpeed * dt;
-      if (p.kind === 'flame' || p.kind === 'smoke' || p.kind === 'spark') {
+      if (p.kind === 'flame' || p.kind === 'smoke' || p.kind === 'spark' || p.kind === 'sizzle') {
         p.vx += windDrift * dt * 0.6;
         p.vy -= (p.kind === 'smoke' ? 8 : 20) * dt;
       }
@@ -123,6 +139,10 @@ export class FireCanvas {
       if (p.kind === 'leaf') {
         p.vx += windDrift * dt * 0.8;
         p.vy += 26 * dt;
+      }
+      if (p.kind === 'dust') {
+        p.vy += 40 * dt;
+        p.vx *= 0.96;
       }
     }
     this.particles = this.particles.filter((p) => p.life > 0 && p.y > -40 && p.y < this.h + 40);
@@ -209,12 +229,98 @@ export class FireCanvas {
     });
   }
 
+  private emitDust(spinSpeed: number): void {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 6 + Math.random() * 14;
+    this.particles.push({
+      x: this.baseX() + Math.cos(angle) * dist,
+      y: this.baseY() - 6 + Math.sin(angle) * dist * 0.4,
+      vx: (Math.random() - 0.5) * 30 * spinSpeed,
+      vy: -(10 + Math.random() * 20 * spinSpeed),
+      life: 260 + Math.random() * 220,
+      maxLife: 480,
+      size: 1.5 + Math.random() * 2,
+      kind: 'dust',
+      hue: 32,
+      rotation: 0,
+      rotationSpeed: 0,
+    });
+  }
+
+  private emitSizzle(fire: number): void {
+    this.particles.push({
+      x: this.baseX() + (Math.random() - 0.5) * (16 + fire * 0.2),
+      y: this.baseY() - fire * 0.5,
+      vx: (Math.random() - 0.5) * 40,
+      vy: -(40 + Math.random() * 30),
+      life: 180 + Math.random() * 120,
+      maxLife: 300,
+      size: 2 + Math.random() * 2,
+      kind: 'sizzle',
+      hue: 0,
+      rotation: 0,
+      rotationSpeed: 0,
+    });
+  }
+
+  private renderRotateRig(): void {
+    const ctx = this.ctx;
+    const bx = this.baseX();
+    const by = this.baseY();
+
+    // ground board
+    ctx.fillStyle = 'rgba(60,42,26,0.9)';
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 70, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(40,28,16,0.7)';
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 46, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // spinning rod (barber-pole stripes suggest rotation around its own axis)
+    const rodW = 13;
+    const rodH = 92;
+    const rodTop = by - rodH - 6;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(bx - rodW / 2, rodTop, rodW, rodH, rodW / 2);
+    ctx.clip();
+    ctx.fillStyle = '#5b3a1e';
+    ctx.fillRect(bx - rodW / 2, rodTop, rodW, rodH);
+    const stripeCount = 6;
+    ctx.strokeStyle = 'rgba(255,220,180,0.35)';
+    ctx.lineWidth = 4;
+    for (let i = -1; i < stripeCount + 1; i++) {
+      const phase = ((this.spinAngle + i * 22) % (rodH + 22)) - 11;
+      ctx.beginPath();
+      ctx.moveTo(bx - rodW, rodTop + phase);
+      ctx.lineTo(bx + rodW, rodTop + phase + 14);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    if (this.state.spinSpeed > 0.05) {
+      // motion blur hint at high speed
+      ctx.globalAlpha = Math.min(0.4, this.state.spinSpeed * 0.3);
+      ctx.fillStyle = '#fff3c4';
+      ctx.beginPath();
+      ctx.ellipse(bx, rodTop + 8, rodW * 1.4, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
   private render(): void {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.w, this.h);
 
+    if (this.state.phase === 'rotate') {
+      this.renderRotateRig();
+    }
+
     // ember glow at base
-    if (this.state.phase !== 'idle' && this.state.fire >= 0) {
+    if (this.state.phase !== 'idle' && this.state.phase !== 'rotate' && this.state.fire >= 0) {
       const glowSize = 16 + this.state.fire * 0.9;
       const grad = ctx.createRadialGradient(
         this.baseX(),
@@ -224,12 +330,22 @@ export class FireCanvas {
         this.baseY(),
         glowSize,
       );
-      const glowAlpha = this.state.phase === 'burning' ? 0.55 : 0.35;
+      const glowAlpha = this.state.phase === 'burning' ? 0.55 : 0.4;
       grad.addColorStop(0, `rgba(255,140,60,${glowAlpha})`);
       grad.addColorStop(1, 'rgba(255,80,20,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(this.baseX(), this.baseY(), glowSize, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.state.phase === 'rotate' && this.state.frictionHeat > 70) {
+      // a faint red glow starting to show at the rod's base just before the ember appears
+      const glowSize = 10 + (this.state.frictionHeat - 70) * 0.6;
+      const grad = ctx.createRadialGradient(this.baseX(), this.baseY() - 4, 0, this.baseX(), this.baseY() - 4, glowSize);
+      grad.addColorStop(0, `rgba(255,90,40,${(this.state.frictionHeat - 70) / 60})`);
+      grad.addColorStop(1, 'rgba(255,80,20,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(this.baseX(), this.baseY() - 4, glowSize, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -271,6 +387,16 @@ export class FireCanvas {
         ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
+      } else if (p.kind === 'dust') {
+        ctx.fillStyle = `hsla(${p.hue}, 45%, 55%, ${0.6 * lifeRatio})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.kind === 'sizzle') {
+        ctx.fillStyle = `rgba(230,235,245,${0.7 * lifeRatio})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
     ctx.globalAlpha = 1;

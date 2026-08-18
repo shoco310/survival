@@ -359,93 +359,152 @@ body {
   font-size: 18px;
 }
 
-/* ---------- Friction screen ---------- */
+/* ---------- Firepit screen (rotate → breath → fuel) ---------- */
 
-.friction-zone {
+.firepit-screen {
+  position: relative;
+}
+
+.phase-banner {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  min-height: 24px;
+  margin: 4px 0 2px;
+  transition: transform 0.2s ease;
+}
+
+.phase-banner.pulse {
+  animation: bannerPulse 0.4s ease;
+}
+
+@keyframes bannerPulse {
+  0% { transform: scale(0.92); opacity: 0.4; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.stage-zone {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 26px;
+  min-height: 44vh;
+  position: relative;
   touch-action: none;
   user-select: none;
 }
 
-.gauge-wrap {
-  width: 100%;
+.stage-materials {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
 }
 
-.gauge-label {
+.stage-material {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
+}
+
+.mini-gauges {
   display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--ink-dim);
-  margin-bottom: 6px;
+  gap: 10px;
+  padding: 0 4px;
+  margin-bottom: 10px;
 }
 
-.gauge-track {
-  width: 100%;
-  height: 22px;
+.mini-gauge {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mg-label {
+  font-size: 10px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  width: 26px;
+}
+
+.mini-track {
+  flex: 1;
+  height: 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--panel-border);
   overflow: hidden;
 }
 
-.gauge-fill {
+.mini-fill {
   height: 100%;
   border-radius: 999px;
+  width: 0%;
+  transition: width 0.1s linear;
   background: linear-gradient(90deg, #ff8a3d, var(--ember-2));
-  transition: width 0.08s linear;
 }
 
-.gauge-fill.oxygen {
+.mini-fill.oxygen {
   background: linear-gradient(90deg, #63c1ff, #8ef0d0);
 }
 
-.gauge-fill.oxygen.warn {
+.mini-fill.oxygen.warn {
   background: linear-gradient(90deg, #ffb347, var(--danger));
 }
 
-.swipe-hint {
-  font-size: 46px;
-  animation: swayHint 1.4s ease-in-out infinite;
-  opacity: 0.85;
+.mini-fill.fire {
+  background: linear-gradient(90deg, var(--flame-red), var(--accent));
 }
 
-@keyframes swayHint {
-  0%, 100% { transform: translateX(-14px); }
-  50% { transform: translateX(14px); }
+.mini-fill.fire.flash {
+  background: var(--danger);
 }
 
-.friction-instruction {
-  text-align: center;
-  color: var(--ink-dim);
-  font-size: 14px;
-}
-
-/* ---------- Breath screen ---------- */
-
-.breath-zone {
-  flex: 1;
+.firepit-controls {
   display: flex;
-  flex-direction: column;
+  justify-content: center;
+  padding: 4px 0 8px;
+}
+
+.fuel-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.fuel-chip {
+  display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 22px;
-  padding-bottom: 10px;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: var(--ink);
+  font-size: 13px;
+  touch-action: none;
+  user-select: none;
 }
 
-.fire-power-label {
+.fuel-chip.dragging {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+.fuel-chip .emoji {
+  font-size: 18px;
+}
+
+.out-of-fuel {
   text-align: center;
+  padding: 10px 0 4px;
 }
 
-.fire-power-label .value {
-  font-size: 44px;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1;
+.out-of-fuel p {
+  color: var(--danger);
+  font-weight: 700;
+  margin: 0 0 8px;
 }
 
 .blow-btn {
@@ -737,6 +796,9 @@ body {
   overflow-y: auto;
   line-height: 1.6;
   border-top: 1px solid rgba(124, 255, 158, 0.3);
+  /* read-only telemetry: never let it intercept taps/drags meant for the game
+     underneath it (several mechanics hit-test against fixed viewport coordinates) */
+  pointer-events: none;
 }
 
 @media (min-width: 640px) {

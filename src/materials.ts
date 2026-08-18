@@ -54,25 +54,17 @@ export function aggregateByRole(collected: Material[], wetness: number): RoleAgg
 
 const ROLE_NORMALIZER = 70;
 
-/** 摩擦フェーズの熱上昇倍率。火口(tinder)が主役、焚き付け(kindling)が少し補助する */
-export function frictionIgnitionFactor(agg: RoleAggregates): number {
+/** 回転フェーズの熱上昇倍率。火口(tinder)が主役、焚き付け(kindling)が少し補助する */
+export function rotateIgnitionFactor(agg: RoleAggregates): number {
   const raw = 0.15 + (agg.tinder.quality / ROLE_NORMALIZER) * 0.9 + (agg.kindling.quality / ROLE_NORMALIZER) * 0.15;
   return clamp(raw, 0.15, 1.5);
 }
 
 /**
- * 息吹きフェーズの火力成長倍率。
- * 火力が低いうちは焚き付け(kindling)が主役、育ってからは燃料(fuel)が主役になる。
+ * 息だけによる火力成長倍率（薪投入フェーズより前。火口・焚き付けの質で決まる）。
+ * 薪投入フェーズに入ってからの成長は firepit.ts が個々の投入材料から直接計算する。
  */
-export function fireGrowthFactor(fire: number, agg: RoleAggregates): number {
-  if (fire < GAME_CONFIG.breath.earlyFireThreshold) {
-    const raw = 0.25 + (agg.kindling.quality / ROLE_NORMALIZER) * 0.55 + (agg.tinder.quality / ROLE_NORMALIZER) * 0.35;
-    return clamp(raw, 0.2, 1.5);
-  }
-  let raw = 0.2 + (agg.fuel.quality / ROLE_NORMALIZER) * 0.7 + (agg.kindling.quality / ROLE_NORMALIZER) * 0.25;
-  // 燃料を一切選んでいない場合、大きな炎を自力で保てず終盤で失速する
-  if (agg.fuel.count === 0 && fire >= 80) {
-    raw *= 0.4;
-  }
-  return clamp(raw, 0.12, 1.5);
+export function breathGrowthFactor(agg: RoleAggregates): number {
+  const raw = 0.25 + (agg.kindling.quality / ROLE_NORMALIZER) * 0.55 + (agg.tinder.quality / ROLE_NORMALIZER) * 0.35;
+  return clamp(raw, 0.2, 1.5);
 }

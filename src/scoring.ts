@@ -16,22 +16,23 @@ export function computeScore(state: GameState): ScoreBreakdown {
     quality * GAME_CONFIG.score.judgementQualityWeight + balance * GAME_CONFIG.score.judgementBalanceWeight;
   const judgement = Math.round((clamp(judgementRaw, 0, 100) / 100) * w.judgement);
 
-  // 火おこし技術：摩擦フェーズの所要時間（速いほど高得点）
-  const frictionSeconds =
-    state.frictionMetrics.finishedAt != null
-      ? (state.frictionMetrics.finishedAt - state.frictionMetrics.startedAt) / 1000
+  // 火おこし技術：回転フェーズの所要時間（速いほど高得点）。摩擦へ後戻りした回数も減点
+  const rotateSeconds =
+    state.rotateMetrics.finishedAt != null
+      ? (state.rotateMetrics.finishedAt - state.rotateMetrics.startedAt) / 1000
       : GAME_CONFIG.score.idealFrictionSeconds * 3;
-  const frictionOver = Math.max(0, frictionSeconds - GAME_CONFIG.score.idealFrictionSeconds);
-  const techniqueRaw = 100 - frictionOver * GAME_CONFIG.score.frictionPenaltyPerSecond;
+  const rotateOver = Math.max(0, rotateSeconds - GAME_CONFIG.score.idealFrictionSeconds);
+  const techniqueRaw =
+    100 - rotateOver * GAME_CONFIG.score.frictionPenaltyPerSecond - state.rotateResetCount * 12;
   const technique = Math.round((clamp(techniqueRaw, 0, 100) / 100) * w.technique);
 
-  // 火の管理：酸素を安全ゾーン内に保てた割合 - 消火ペナルティ
+  // 火の管理：酸素を安全ゾーン内に保てた割合 - 消火/投入ミスのペナルティ
   const safeRatio =
     state.breathMetrics.totalTicks > 0
       ? (state.breathMetrics.safeZoneTicks / state.breathMetrics.totalTicks) * 100
       : 0;
-  const managementRaw =
-    safeRatio - state.breathMetrics.extinguishCount * GAME_CONFIG.score.managementPenaltyPerExtinguish;
+  const mistakes = state.breathMetrics.extinguishCount + state.fuelMistakes;
+  const managementRaw = safeRatio - mistakes * GAME_CONFIG.score.managementPenaltyPerExtinguish;
   const management = Math.round((clamp(managementRaw, 0, 100) / 100) * w.management);
 
   // スピード：クリアタイム

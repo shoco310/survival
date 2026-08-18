@@ -5,8 +5,7 @@ import { EnvironmentTicker } from './environment';
 import { clamp } from './ui';
 import { mountStart } from './screens/start';
 import { mountGather } from './screens/gather';
-import { mountFriction } from './screens/friction';
-import { mountBreath } from './screens/breath';
+import { mountFirepit } from './screens/firepit';
 import { mountResult } from './screens/result';
 import { mountDebugPanel } from './screens/debug';
 import type { ScreenContext, Unmount } from './screens/context';
@@ -58,8 +57,7 @@ const ctx: ScreenContext = {
 const mounts: Record<Screen, (root: HTMLElement, ctx: ScreenContext) => Unmount> = {
   start: mountStart,
   gather: mountGather,
-  friction: mountFriction,
-  breath: mountBreath,
+  firepit: mountFirepit,
   result: mountResult,
 };
 

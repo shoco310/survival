@@ -76,7 +76,7 @@ export function mountGather(root: HTMLElement, ctx: ScreenContext): Unmount {
       root.removeEventListener('click', onClick);
       setTimeout(() => {
         store.state.collectedMaterials = collected;
-        store.set({ screen: 'friction' });
+        store.set({ screen: 'firepit' });
       }, 450);
     }
   };

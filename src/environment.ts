@@ -54,7 +54,7 @@ export class EnvironmentTicker {
   private tick(dtMs: number, now: number): void {
     const state = store.state;
     const active =
-      (state.screen === 'gather' || state.screen === 'friction' || state.screen === 'breath') &&
+      (state.screen === 'gather' || state.screen === 'firepit') &&
       state.startTime != null &&
       state.finishTime == null;
 

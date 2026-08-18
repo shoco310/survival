@@ -1,4 +1,4 @@
-export type Screen = 'start' | 'gather' | 'friction' | 'breath' | 'result';
+export type Screen = 'start' | 'gather' | 'firepit' | 'result';
 
 export type EquipmentId = 'fire' | 'food' | 'shelter';
 
@@ -29,7 +29,7 @@ export interface WeatherEvent {
   next: WeatherId;
 }
 
-export interface FrictionMetrics {
+export interface RotateMetrics {
   startedAt: number;
   finishedAt: number | null;
 }
@@ -38,6 +38,15 @@ export interface BreathMetrics {
   totalTicks: number;
   safeZoneTicks: number;
   extinguishCount: number;
+}
+
+/** 火おこし工程内の段階。中央のビジュアルステージがこの段階に応じて変化する */
+export type FirePhase = 'rotate' | 'breath' | 'fuel' | 'success';
+
+export interface FuelLogEntry {
+  id: string;
+  role: MaterialRole;
+  goodTiming: boolean;
 }
 
 export interface GameState {
@@ -61,12 +70,18 @@ export interface GameState {
   startTime: number | null;
   finishTime: number | null;
 
-  heat: number; // 0-100 friction gauge
-  fire: number; // 0-100 fire strength
-  oxygen: number; // 0-100 breathing gauge
-  sparked: boolean; // ember created via friction
+  firePhase: FirePhase;
+  heat: number; // 0-100 摩擦熱（回転で上昇）
+  emberPower: number; // 0-100 火種の勢い（放置で減衰、0で摩擦フェーズへ後戻り）
+  fire: number; // 0-100 火力（=中央の炎の大きさと同期）
+  oxygen: number; // 0-100 呼吸ゲージ
+  sparked: boolean; // 火種ができたか
 
-  frictionMetrics: FrictionMetrics;
+  rotateResetCount: number; // 火種が消えて摩擦フェーズへ戻った回数
+  fuelLog: FuelLogEntry[]; // 薪投入の履歴（順序評価・スコアに使用）
+  fuelMistakes: number; // 投入タイミングを誤った回数
+
+  rotateMetrics: RotateMetrics;
   breathMetrics: BreathMetrics;
 
   overblowWarning: boolean;
