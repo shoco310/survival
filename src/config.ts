@@ -39,8 +39,8 @@ export const GAME_CONFIG = {
     passiveFireDecayPerSecond: {
       sunny: 0,
       wind: 0,
-      rain: 1.1,
-      storm: 3.4,
+      rain: 0.5,
+      storm: 1.1,
     } satisfies Record<WeatherId, number>,
   },
 
@@ -78,12 +78,12 @@ export const GAME_CONFIG = {
 
   // 素材の湿り具合（雨・豪雨で時間経過とともに蓄積）
   wetness: {
-    gainPerSecondRain: 3.5,
-    gainPerSecondStorm: 8,
+    gainPerSecondRain: 2.0,
+    gainPerSecondStorm: 4.5,
     dryPerSecond: 3, // 雨が止んでいる間に乾いていく速度
     max: 100,
-    // wetSensitiveな素材が、湿度maxのときに失う効果の割合（0.5 = 最大50%減）
-    qualityPenaltyAtMax: 0.55,
+    // wetSensitiveな素材が、湿度maxのときに失う効果の割合（0.35 = 最大35%減。それでも必ず進行できる程度に抑える）
+    qualityPenaltyAtMax: 0.35,
   },
 
   // タイムプレッシャー演出：経過時間による夜の暗さ（0=明るい,1=真っ暗に近い）
@@ -106,9 +106,9 @@ export const GAME_CONFIG = {
       startingHeat: 40,
     },
     food: {
-      // 非常食：体力を維持できるため、熱の自然減衰と再挑戦時のロスが少ない
+      // 非常食：体力を維持できるため、熱の自然減衰が少なく、火種を消してしまっても回復が早い
       heatDecayMultiplier: 0.6,
-      reigniteEmberBonus: 8, // 消火後、再着火時のfire初期値に加算
+      resetRecoveryBonus: 8, // 火が消えて摩擦フェーズへ後戻りする際、熱の初期値に加算
     },
     shelter: {
       // 簡易シェルター：weather.shelterMitigation / wetness軽減 に反映
@@ -187,46 +187,28 @@ export const GAME_CONFIG = {
     resetHeat: 18,
   },
 
+  // PHASE 3: 息を吹いて火種を焚き火まで育てる（焚き付け/燃料は品質として自動的に効く）。
+  // 「吹きすぎると消える」失敗状態は廃止。ずっと持ち続けるだけでも成功できるよう、
+  // 酸素量に応じた成長効率のゆるやかな山（ベルカーブ）だけで表現する
   breath: {
     // 長押し中、1秒あたりに増加する酸素量
-    blowRatePerSecond: 50,
+    blowRatePerSecond: 32,
     // 離している間、1秒あたりに減少する酸素量
-    releaseDecayPerSecond: 34,
-    // 安全ゾーン
-    safeZoneMin: 40,
-    safeZoneMax: 70,
-    // 安全ゾーン内にいるときの基礎火力成長速度（1秒あたり。素材係数で補正される）
-    fireGrowthPerSecond: 9,
+    releaseDecayPerSecond: 18,
+    // 成長効率が最大になる酸素量（この付近を保つと一番早く育つが、必須ではない）
+    optimalOxygen: 60,
+    // ベルカーブの広さ（大きいほど、外れても効率が落ちにくい＝易しい）
+    bellWidth: 65,
+    // 酸素量が0や100に張り付いていても最低限保証される成長効率（0.5 = 半分は必ず育つ）
+    minGrowthMultiplier: 0.55,
+    // 成長効率のベルカーブに掛かる基礎火力成長速度（1秒あたり。素材係数で補正される）
+    fireGrowthPerSecond: 12,
     // この火力を境に、成長の主役が焚き付け(kindling)から燃料(fuel)に切り替わる
-    earlyFireThreshold: 35,
-    // 酸素不足（10%未満）のとき、火力が減少する速度
-    starveShrinkPerSecond: 6,
-    // 吹きすぎ状態に入ったとみなす酸素値
-    overblowThreshold: 70,
-    // 吹きすぎ状態がこの時間(ms)続くと警告を表示
-    overblowWarningMs: 900,
-    // 吹きすぎ状態がこの時間(ms)続くと消火が始まる
-    overblowDangerMs: 2000,
-    // 消火時の火力減少速度（1秒あたり）
-    extinguishShrinkPerSecond: 70,
-    // 消火後、再着火時のfireの初期値（食料ボーナスが加算される）
-    emberRestartFire: 4,
-  },
-
-  // PHASE 4: 焚き付け・燃料を実際に炎へドラッグして投入する
-  fuel: {
-    // この火力に到達したら薪投入フェーズへ移行する
-    phaseThreshold: 35,
-    // 炎の中心からこの距離(px)以内にドロップすると受理される
-    dropZoneRadius: 100,
-    // タイミングが正しいときの基礎火力上昇量
-    baseBoost: 15,
-    // タイミングが悪い（早すぎる燃料投入など）ときの火力低下量
-    wrongTimingPenalty: 7,
-    // 火力がこの値未満ならkindling、以上ならfuelがベストタイミング
-    idealSwitchFire: 55,
-    // 手持ちの焚き付け/燃料を使い切ってしまったときに追加で拾える数
-    topUpCount: 2,
+    earlyFireThreshold: 45,
+    // 酸素がほぼゼロ（吹くのを完全にやめた）とみなす閾値
+    neglectOxygenThreshold: 8,
+    // 完全に放置しているとき、1秒あたりに減少する火力
+    starveShrinkPerSecond: 4,
   },
 
   score: {
@@ -242,8 +224,6 @@ export const GAME_CONFIG = {
     // 火おこし技術：想定される回転フェーズ所要時間(秒)。これより速いほど高得点
     idealFrictionSeconds: 14,
     frictionPenaltyPerSecond: 3,
-    // 火の管理：消火・投入ミス1回につき減点する割合(0-100点満点中)
-    managementPenaltyPerExtinguish: 14,
     // スピード：この秒数以内ならフルスコア、以降1秒ごとに減点
     speedFullMarkSeconds: 60,
     speedPenaltyPerSecond: 0.55,

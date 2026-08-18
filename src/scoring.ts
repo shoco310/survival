@@ -26,13 +26,11 @@ export function computeScore(state: GameState): ScoreBreakdown {
     100 - rotateOver * GAME_CONFIG.score.frictionPenaltyPerSecond - state.rotateResetCount * 12;
   const technique = Math.round((clamp(techniqueRaw, 0, 100) / 100) * w.technique);
 
-  // 火の管理：酸素を安全ゾーン内に保てた割合 - 消火/投入ミスのペナルティ
-  const safeRatio =
+  // 火の管理：息の吹き方が理想の酸素量にどれだけ近かったか（平均効率）
+  const managementRaw =
     state.breathMetrics.totalTicks > 0
       ? (state.breathMetrics.safeZoneTicks / state.breathMetrics.totalTicks) * 100
       : 0;
-  const mistakes = state.breathMetrics.extinguishCount + state.fuelMistakes;
-  const managementRaw = safeRatio - mistakes * GAME_CONFIG.score.managementPenaltyPerExtinguish;
   const management = Math.round((clamp(managementRaw, 0, 100) / 100) * w.management);
 
   // スピード：クリアタイム

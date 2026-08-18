@@ -448,63 +448,14 @@ body {
   background: linear-gradient(90deg, #63c1ff, #8ef0d0);
 }
 
-.mini-fill.oxygen.warn {
-  background: linear-gradient(90deg, #ffb347, var(--danger));
-}
-
 .mini-fill.fire {
   background: linear-gradient(90deg, var(--flame-red), var(--accent));
-}
-
-.mini-fill.fire.flash {
-  background: var(--danger);
 }
 
 .firepit-controls {
   display: flex;
   justify-content: center;
   padding: 4px 0 8px;
-}
-
-.fuel-tray {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  padding: 10px 0 4px;
-}
-
-.fuel-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 999px;
-  padding: 8px 14px;
-  color: var(--ink);
-  font-size: 13px;
-  touch-action: none;
-  user-select: none;
-}
-
-.fuel-chip.dragging {
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
-}
-
-.fuel-chip .emoji {
-  font-size: 18px;
-}
-
-.out-of-fuel {
-  text-align: center;
-  padding: 10px 0 4px;
-}
-
-.out-of-fuel p {
-  color: var(--danger);
-  font-weight: 700;
-  margin: 0 0 8px;
 }
 
 .blow-btn {
@@ -525,21 +476,6 @@ body {
 .blow-btn:active {
   transform: scale(0.98);
   background: linear-gradient(180deg, rgba(255, 170, 100, 0.4), rgba(255, 100, 40, 0.2));
-}
-
-.warning-toast {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(255, 60, 60, 0.85);
-  color: white;
-  padding: 8px 18px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 13px;
-  z-index: 10;
-  animation: fadeIn 0.2s ease;
 }
 
 /* ---------- Result screen ---------- */

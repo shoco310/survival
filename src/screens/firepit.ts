@@ -1,12 +1,12 @@
 import { store } from '../state';
 import { startTimerDisplay, weatherChipHtml, clamp } from '../ui';
 import { GAME_CONFIG } from '../config';
-import { aggregateByRole, rotateIgnitionFactor, breathGrowthFactor } from '../materials';
+import { aggregateByRole, rotateIgnitionFactor, fireGrowthFactor } from '../materials';
 import { rotateWeatherMultiplier, fireGrowthWeatherMultiplier, passiveFireWeatherDecay } from '../weather';
-import type { Material, MaterialRole } from '../types';
+import type { MaterialRole } from '../types';
 import type { ScreenContext, Unmount } from './context';
 
-type LocalPhase = 'rotate' | 'breath' | 'fuel';
+type LocalPhase = 'rotate' | 'breath';
 
 export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
   const state = store.state;
@@ -19,7 +19,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
   let fire = 0;
   let oxygen = 0;
   let holding = false;
-  let overblowSince: number | null = null;
   let finished = false;
   let angularSpeedEma = 0;
   let lastMoveT = performance.now();
@@ -27,9 +26,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
   let pointerActive = false;
   state.rotateMetrics.startedAt = Date.now();
   state.firePhase = 'rotate';
-
-  // fuel tray = kindling/fuel materials not yet dropped into the fire this session
-  const fuelTray: Material[] = state.collectedMaterials.filter((m) => m.role !== 'tinder');
 
   root.innerHTML = `
     <div class="screen firepit-screen">
@@ -52,13 +48,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
       <div class="firepit-controls">
         <button class="blow-btn" id="blow-btn" style="display:none;">🌬️ 長押しして息を吹く</button>
       </div>
-
-      <div class="fuel-tray" id="fuel-tray" style="display:none;"></div>
-
-      <div class="out-of-fuel" id="out-of-fuel" style="display:none;">
-        <p>燃料が足りない！</p>
-        <button class="btn btn-secondary" id="find-more-btn">🔦 薪を探しに走る</button>
-      </div>
     </div>
   `;
 
@@ -70,9 +59,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
   const oxygenFill = root.querySelector<HTMLElement>('#oxygen-fill')!;
   const fireFill = root.querySelector<HTMLElement>('#fire-fill')!;
   const blowBtn = root.querySelector<HTMLButtonElement>('#blow-btn')!;
-  const fuelTrayEl = root.querySelector<HTMLElement>('#fuel-tray')!;
-  const outOfFuelEl = root.querySelector<HTMLElement>('#out-of-fuel')!;
-  const findMoreBtn = root.querySelector<HTMLButtonElement>('#find-more-btn')!;
   const weatherChipEl = root.querySelector<HTMLElement>('#weather-chip')!;
   let lastRenderedWeather = state.weather;
 
@@ -86,7 +72,7 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
     const zones: Record<MaterialRole, { rMin: number; rMax: number }> = {
       tinder: { rMin: 26, rMax: 58 },
       kindling: { rMin: 64, rMax: 104 },
-      fuel: { rMin: 120, rMax: 165 },
+      fuel: { rMin: 110, rMax: 150 },
     };
     stageMaterials.innerHTML = state.collectedMaterials
       .map((m, i) => {
@@ -111,8 +97,8 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
         el.style.opacity = '0';
         el.style.transform = 'translate(-50%,-50%) scale(0.4)';
       } else {
-        el.style.transition = 'opacity .4s ease';
-        el.style.opacity = '0';
+        el.style.transition = 'opacity 1.2s ease';
+        el.style.opacity = '0.55';
       }
     });
   }
@@ -178,8 +164,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
     phase = 'rotate';
     state.firePhase = 'rotate';
     blowBtn.style.display = 'none';
-    fuelTrayEl.style.display = 'none';
-    outOfFuelEl.style.display = 'none';
     ctx.setFireVisual({ phase: 'rotate', fire: 0, spinSpeed: 0, frictionHeat: heat });
     ctx.setAmbient(0);
     if (afterReset) {
@@ -193,137 +177,10 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
     phase = 'breath';
     state.firePhase = 'breath';
     blowBtn.style.display = '';
-    fuelTrayEl.style.display = 'none';
-    outOfFuelEl.style.display = 'none';
-    showBanner('🔥 火種ができた！そっと息を吹きかけよう', 1600, 'そっと息を吹きかけよう');
+    showBanner('🔥 火種ができた！そっと息を吹きかけよう', 1600, '長押しで息を吹いて炎を育てよう');
   }
 
-  function renderFuelTray(): void {
-    fuelTrayEl.innerHTML = fuelTray
-      .map(
-        (m, i) => `<button class="fuel-chip" data-idx="${i}" style="touch-action:none;">
-          <span class="emoji">${m.emoji}</span><span class="label">${m.label}</span>
-        </button>`,
-      )
-      .join('');
-  }
-
-  function enterFuelPhase(): void {
-    phase = 'fuel';
-    state.firePhase = 'fuel';
-    fuelTrayEl.style.display = '';
-    renderFuelTray();
-    showBanner('🪵 炎がついた！薪をくべろ', 1800, '素材を炎へドラッグしよう');
-    if (fuelTray.length === 0) {
-      showOutOfFuel();
-    }
-  }
-
-  function showOutOfFuel(): void {
-    outOfFuelEl.style.display = '';
-  }
-
-  const onFindMore = () => {
-    outOfFuelEl.style.display = 'none';
-    showBanner('浜辺を走って追加の枝を探してきた…', 1400, '素材を炎へドラッグしよう');
-    const pool = GAME_CONFIG.materials.pool.filter((m) => m.role !== 'tinder');
-    for (let i = 0; i < GAME_CONFIG.fuel.topUpCount; i++) {
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      fuelTray.push(pick);
-      state.collectedMaterials.push(pick);
-    }
-    renderFuelTray();
-  };
-  findMoreBtn.addEventListener('click', onFindMore);
-
-  // ---------- fuel drag & drop ----------
-  let dragEl: HTMLElement | null = null;
-  let dragIdx = -1;
-  let dragStartX = 0;
-  let dragStartY = 0;
-
-  const onFuelPointerDown = (e: PointerEvent) => {
-    const chip = (e.target as HTMLElement).closest<HTMLElement>('.fuel-chip');
-    if (!chip || phase !== 'fuel') return;
-    dragEl = chip;
-    dragIdx = Number(chip.dataset.idx);
-    const rect = chip.getBoundingClientRect();
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-    chip.style.position = 'fixed';
-    chip.style.left = `${rect.left}px`;
-    chip.style.top = `${rect.top}px`;
-    chip.style.width = `${rect.width}px`;
-    chip.style.zIndex = '40';
-    chip.classList.add('dragging');
-    chip.setPointerCapture(e.pointerId);
-  };
-  const onFuelPointerMove = (e: PointerEvent) => {
-    if (!dragEl) return;
-    const dx = e.clientX - dragStartX;
-    const dy = e.clientY - dragStartY;
-    dragEl.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
-  };
-  const onFuelPointerUp = (e: PointerEvent) => {
-    if (!dragEl) return;
-    const chip = dragEl;
-    const r = radiusAt(e.clientX, e.clientY);
-    const dropped = r <= GAME_CONFIG.fuel.dropZoneRadius;
-    if (dropped) {
-      const material = fuelTray[dragIdx];
-      chip.style.transition = 'opacity .3s ease, transform .3s ease';
-      chip.style.transform += ' scale(0.2)';
-      chip.style.opacity = '0';
-      setTimeout(() => chip.remove(), 300);
-      fuelTray.splice(dragIdx, 1);
-      renderFuelTrayIndices();
-      applyFuelDrop(material);
-    } else {
-      chip.style.transition = 'transform .25s ease';
-      chip.style.transform = 'translate(0,0)';
-      setTimeout(() => {
-        chip.style.position = '';
-        chip.style.left = '';
-        chip.style.top = '';
-        chip.style.width = '';
-        chip.style.zIndex = '';
-        chip.style.transform = '';
-        chip.classList.remove('dragging');
-      }, 260);
-    }
-    dragEl = null;
-    dragIdx = -1;
-  };
-  function renderFuelTrayIndices(): void {
-    // re-render remaining chips so data-idx stays in sync (dragged one already removed from array)
-    renderFuelTray();
-    if (fuelTray.length === 0 && phase === 'fuel' && fire < 100) {
-      showOutOfFuel();
-    }
-  }
-  fuelTrayEl.addEventListener('pointerdown', onFuelPointerDown);
-  window.addEventListener('pointermove', onFuelPointerMove);
-  window.addEventListener('pointerup', onFuelPointerUp);
-
-  function applyFuelDrop(material: Material): void {
-    const cfg = GAME_CONFIG.fuel;
-    const idealForKindling = fire < cfg.idealSwitchFire;
-    const goodTiming = material.role === 'kindling' ? idealForKindling : !idealForKindling || fire >= cfg.idealSwitchFire * 0.7;
-    const qualityFactor = material.quality / 100;
-    if (goodTiming) {
-      fire = clamp(fire + cfg.baseBoost * (0.5 + 0.5 * qualityFactor), 0, 100);
-      ctx.setFireVisual({ phase: 'burning', fire });
-    } else {
-      fire = clamp(fire - cfg.wrongTimingPenalty * (1 - 0.3 * qualityFactor), 0, 100);
-      state.fuelMistakes += 1;
-      showBanner('もくもく…煙が増えた', 1200, '素材を炎へドラッグしよう');
-    }
-    state.fuelLog.push({ id: material.id, role: material.role, goodTiming });
-    state.fire = fire;
-    fireFill.style.width = `${fire}%`;
-  }
-
-  // ---------- main loop: rotate heat / breath+fuel fire dynamics ----------
+  // ---------- main loop: rotate heat / breath fire dynamics ----------
   let raf = 0;
   let lastT = performance.now();
 
@@ -379,74 +236,59 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
         enterBreathPhase();
       }
     } else {
-      // breath + fuel share the same oxygen/fire simulation; fuel phase adds drag-drop boosts
       fire = state.fire;
       oxygen = state.oxygen;
 
-      oxygen = clamp(
-        oxygen + (holding ? GAME_CONFIG.breath.blowRatePerSecond : -GAME_CONFIG.breath.releaseDecayPerSecond) * dt,
-        0,
-        100,
-      );
+      const B = GAME_CONFIG.breath;
+      oxygen = clamp(oxygen + (holding ? B.blowRatePerSecond : -B.releaseDecayPerSecond) * dt, 0, 100);
+
+      // 酸素量に応じた成長効率のゆるやかな山（最適値から離れても最低ラインは保証される）
+      const distance = Math.abs(oxygen - B.optimalOxygen) / B.bellWidth;
+      const efficiency = clamp(1 - distance, B.minGrowthMultiplier, 1);
+
       state.breathMetrics.totalTicks += dt;
-      const inSafeZone = oxygen >= GAME_CONFIG.breath.safeZoneMin && oxygen <= GAME_CONFIG.breath.safeZoneMax;
-      if (inSafeZone) state.breathMetrics.safeZoneTicks += dt;
+      state.breathMetrics.safeZoneTicks += efficiency * dt;
 
       const agg = aggregateByRole(state.collectedMaterials, state.wetness);
-      if (inSafeZone) {
-        const scale = phase === 'fuel' ? 0.22 : 1;
+      if (oxygen >= B.neglectOxygenThreshold) {
         const growth =
-          GAME_CONFIG.breath.fireGrowthPerSecond *
-          breathGrowthFactor(agg) *
+          B.fireGrowthPerSecond *
+          fireGrowthFactor(fire, agg) *
           fireGrowthWeatherMultiplier(state.weather, hasShelter, fire) *
-          scale *
+          efficiency *
           dt;
         fire = clamp(fire + growth, 0, 100);
-      } else if (oxygen < 10) {
-        const decayRate =
-          fire < GAME_CONFIG.ember.fragileFireThreshold
-            ? GAME_CONFIG.ember.neglectDecayPerSecond
-            : GAME_CONFIG.breath.starveShrinkPerSecond * 0.5;
+      } else {
+        // 完全に息を止めている（放置している）ときだけ、ゆっくり火力が落ちる
+        const decayRate = fire < GAME_CONFIG.ember.fragileFireThreshold ? GAME_CONFIG.ember.neglectDecayPerSecond : B.starveShrinkPerSecond;
         fire = clamp(fire - decayRate * dt, 0, 100);
       }
 
-      // 天候の直接効果
+      // 100%に届いた時点で即成功とする（この後の天候減衰でまた99%台に押し戻され、
+      // 判定を取りこぼし続けるのを防ぐ）
+      if (fire >= 100) {
+        finished = true;
+        state.fire = 100;
+        state.oxygen = oxygen;
+        state.finishTime = Date.now();
+        if (navigator.vibrate) navigator.vibrate([50, 40, 30, 40, 160]);
+        ctx.setFireVisual({ phase: 'burning', fire: 100 });
+        ctx.setAmbient(100);
+        cleanup();
+        store.set({ screen: 'result' });
+        return;
+      }
+
+      // 天候の直接効果（吹きすぎとは無関係に、悪天候そのものが炎を弱らせる）
       fire = clamp(fire - passiveFireWeatherDecay(state.weather, hasShelter) * dt, 0, 100);
       if (state.weather === 'wind' && fire > 0 && fire < GAME_CONFIG.weather.windWeakFireThreshold) {
         fire = clamp(fire - GAME_CONFIG.weather.windWeakFireShrinkPerSecond * dt, 0, 100);
       }
 
-      let extinguishFlash = false;
-      if (oxygen > GAME_CONFIG.breath.overblowThreshold) {
-        const now = t;
-        if (overblowSince == null) overblowSince = now;
-        const overDur = now - overblowSince;
-        if (overDur >= GAME_CONFIG.breath.overblowWarningMs) {
-          state.overblowWarning = true;
-          showOverblowWarning();
-        }
-        if (overDur >= GAME_CONFIG.breath.overblowDangerMs) {
-          fire = clamp(fire - GAME_CONFIG.breath.extinguishShrinkPerSecond * dt, 0, 100);
-          if (fire <= 0) {
-            state.breathMetrics.extinguishCount += 1;
-            fire = GAME_CONFIG.breath.emberRestartFire + (hasFood ? GAME_CONFIG.equipment.food.reigniteEmberBonus : 0);
-            oxygen = 0;
-            overblowSince = null;
-            state.overblowWarning = false;
-            hideOverblowWarning();
-            extinguishFlash = true;
-          }
-        }
-      } else {
-        overblowSince = null;
-        state.overblowWarning = false;
-        hideOverblowWarning();
-      }
-
-      // 火種の段階での完全放置消火 → 摩擦フェーズへ後戻り
-      if (phase === 'breath' && fire <= 0) {
+      // 火種の段階で完全に消えてしまった → 摩擦フェーズへ後戻り
+      if (fire <= 0) {
         state.rotateResetCount += 1;
-        heat = GAME_CONFIG.ember.resetHeat;
+        heat = GAME_CONFIG.ember.resetHeat + (hasFood ? GAME_CONFIG.equipment.food.resetRecoveryBonus : 0);
         state.heat = heat;
         fire = 0;
         oxygen = 0;
@@ -460,47 +302,15 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
       state.fire = fire;
       state.oxygen = oxygen;
       oxygenFill.style.width = `${oxygen}%`;
-      oxygenFill.classList.toggle('warn', oxygen > GAME_CONFIG.breath.overblowThreshold);
       fireFill.style.width = `${fire}%`;
-      if (extinguishFlash) {
-        fireFill.classList.add('flash');
-        setTimeout(() => fireFill.classList.remove('flash'), 400);
-      }
 
       ctx.setFireVisual({ phase: fire >= 8 ? 'burning' : 'ember', fire });
       ctx.setAmbient(fire);
-
-      if (phase === 'breath' && fire >= GAME_CONFIG.fuel.phaseThreshold) {
-        enterFuelPhase();
-      }
-
-      if (fire >= 100) {
-        finished = true;
-        state.fire = 100;
-        state.finishTime = Date.now();
-        if (navigator.vibrate) navigator.vibrate([50, 40, 30, 40, 160]);
-        cleanup();
-        store.set({ screen: 'result' });
-        return;
-      }
     }
 
     raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);
-
-  let warningToastEl: HTMLElement | null = null;
-  function showOverblowWarning(): void {
-    if (warningToastEl) return;
-    warningToastEl = document.createElement('div');
-    warningToastEl.className = 'warning-toast';
-    warningToastEl.textContent = '吹きすぎ！';
-    root.querySelector('.firepit-screen')!.appendChild(warningToastEl);
-  }
-  function hideOverblowWarning(): void {
-    warningToastEl?.remove();
-    warningToastEl = null;
-  }
 
   const onBlowDown = (e: PointerEvent) => {
     holding = true;
@@ -517,7 +327,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
   function cleanup(): void {
     cancelAnimationFrame(raf);
     stopTimer();
-    hideOverblowWarning();
     window.removeEventListener('resize', renderStageMaterials);
     root.removeEventListener('pointerdown', onRotateDown);
     root.removeEventListener('pointermove', onRotateMove);
@@ -527,10 +336,6 @@ export function mountFirepit(root: HTMLElement, ctx: ScreenContext): Unmount {
     blowBtn.removeEventListener('pointerup', onBlowUp);
     blowBtn.removeEventListener('pointercancel', onBlowUp);
     blowBtn.removeEventListener('pointerleave', onBlowUp);
-    fuelTrayEl.removeEventListener('pointerdown', onFuelPointerDown);
-    window.removeEventListener('pointermove', onFuelPointerMove);
-    window.removeEventListener('pointerup', onFuelPointerUp);
-    findMoreBtn.removeEventListener('click', onFindMore);
   }
 
   return cleanup;
