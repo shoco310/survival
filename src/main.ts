@@ -1,6 +1,7 @@
 import './style.css';
 import { store } from './state';
 import { FireCanvas, type FireVisualState } from './fireCanvas';
+import { EnvironmentTicker } from './environment';
 import { clamp } from './ui';
 import { mountStart } from './screens/start';
 import { mountGather } from './screens/gather';
@@ -14,16 +15,37 @@ import type { Screen } from './types';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <canvas id="fire-canvas"></canvas>
+  <div id="tree-layer">
+    <div class="tree t1"></div>
+    <div class="tree t2"></div>
+    <div class="tree t3"></div>
+    <div class="tree t4"></div>
+  </div>
+  <div id="night-overlay"></div>
   <div id="warm-overlay"></div>
+  <div id="lightning-flash"></div>
+  <div id="center-toast"></div>
   <div id="screen-root"></div>
 `;
 
 const canvasEl = app.querySelector<HTMLCanvasElement>('#fire-canvas')!;
 const warmOverlay = app.querySelector<HTMLDivElement>('#warm-overlay')!;
+const nightOverlay = app.querySelector<HTMLDivElement>('#night-overlay')!;
+const lightningFlash = app.querySelector<HTMLDivElement>('#lightning-flash')!;
+const centerToast = app.querySelector<HTMLDivElement>('#center-toast')!;
+const treeEls = Array.from(app.querySelectorAll<HTMLDivElement>('.tree'));
 const screenRoot = app.querySelector<HTMLDivElement>('#screen-root')!;
 
 const fireCanvas = new FireCanvas(canvasEl);
 fireCanvas.start();
+
+const environment = new EnvironmentTicker(fireCanvas, {
+  night: nightOverlay,
+  lightning: lightningFlash,
+  toast: centerToast,
+  trees: treeEls,
+});
+environment.start();
 
 const ctx: ScreenContext = {
   fireCanvas,

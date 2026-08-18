@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from './config';
-import type { WeatherId } from './types';
+import type { WeatherEvent, WeatherId } from './types';
 
 export const WEATHER_META: Record<WeatherId, { emoji: string; label: string }> = {
   sunny: { emoji: '☀️', label: '晴れ' },
@@ -8,15 +8,51 @@ export const WEATHER_META: Record<WeatherId, { emoji: string; label: string }> =
   storm: { emoji: '⛈️', label: '激しい雨' },
 };
 
-export function rollWeather(): WeatherId {
+export const WEATHER_TRANSITION_TOAST: Record<WeatherId, string> = {
+  sunny: '空が晴れてきた…',
+  wind: '風が強くなってきた…',
+  rain: '雨が降り始めた…',
+  storm: '雨と風が激しくなってきた…',
+};
+
+export function rollWeather(exclude?: WeatherId): WeatherId {
   const probs = GAME_CONFIG.weather.probabilities;
-  const total = Object.values(probs).reduce((a, b) => a + b, 0);
+  const keys = (Object.keys(probs) as WeatherId[]).filter((k) => k !== exclude);
+  const total = keys.reduce((a, k) => a + probs[k], 0);
   let roll = Math.random() * total;
-  for (const key of Object.keys(probs) as WeatherId[]) {
+  for (const key of keys) {
     roll -= probs[key];
     if (roll <= 0) return key;
   }
-  return 'sunny';
+  return keys[0];
+}
+
+/** ゲーム開始時に、そのプレイ中に起こる天候変化のタイムラインを作る（0〜2回） */
+export function buildWeatherTimeline(initial: WeatherId): WeatherEvent[] {
+  const weights = GAME_CONFIG.weatherDynamics.transitionCountWeights;
+  const entries = Object.entries(weights) as [string, number][];
+  const total = entries.reduce((a, [, w]) => a + w, 0);
+  let roll = Math.random() * total;
+  let count = 0;
+  for (const [key, w] of entries) {
+    roll -= w;
+    if (roll <= 0) {
+      count = Number(key);
+      break;
+    }
+  }
+
+  const { minGapSeconds, maxGapSeconds } = GAME_CONFIG.weatherDynamics;
+  const events: WeatherEvent[] = [];
+  let current = initial;
+  let t = 0;
+  for (let i = 0; i < count; i++) {
+    t += minGapSeconds + Math.random() * (maxGapSeconds - minGapSeconds);
+    const next = rollWeather(current);
+    events.push({ atSeconds: t, next });
+    current = next;
+  }
+  return events;
 }
 
 /** shelter装備時、悪天候の倍率をどれだけ1.0に近づけるか */
@@ -38,4 +74,35 @@ export function fireGrowthWeatherMultiplier(weather: WeatherId, hasShelter: bool
     return mitigated * GAME_CONFIG.weather.windBoostMultiplier;
   }
   return mitigated;
+}
+
+const BASE_AMBIENT: Record<WeatherId, { wind: number; rain: number }> = {
+  sunny: { wind: 0.15, rain: 0 },
+  wind: { wind: 1, rain: 0 },
+  rain: { wind: 0.3, rain: 1 },
+  storm: { wind: 0.85, rain: 1.7 },
+};
+
+/**
+ * 現在の天候と次の変化イベントから、木々の揺れ・雨の強さといった
+ * 「見た目の強度」を計算する。変化の予兆リード時間の間は次の天候へ滑らかに近づく。
+ */
+export function computeAmbientIntensity(
+  current: WeatherId,
+  upcoming: WeatherEvent | null,
+  elapsedSeconds: number,
+): { wind: number; rain: number } {
+  const base = BASE_AMBIENT[current];
+  if (!upcoming) return base;
+
+  const lead = GAME_CONFIG.weatherDynamics.foreshadowLeadSeconds;
+  const windowStart = upcoming.atSeconds - lead;
+  if (elapsedSeconds < windowStart) return base;
+
+  const progress = Math.min(1, (elapsedSeconds - windowStart) / lead);
+  const target = BASE_AMBIENT[upcoming.next];
+  return {
+    wind: base.wind + (target.wind - base.wind) * progress,
+    rain: base.rain + (target.rain - base.rain) * progress,
+  };
 }

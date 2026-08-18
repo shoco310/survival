@@ -1,5 +1,3 @@
-import type { WeatherId } from './types';
-
 interface Particle {
   x: number;
   y: number;
@@ -8,19 +6,22 @@ interface Particle {
   life: number;
   maxLife: number;
   size: number;
-  kind: 'flame' | 'smoke' | 'spark' | 'rain' | 'droplet';
+  kind: 'flame' | 'smoke' | 'spark' | 'rain' | 'leaf';
   hue: number;
+  rotation: number;
+  rotationSpeed: number;
 }
 
 export interface FireVisualState {
   fire: number; // 0-100
   phase: 'idle' | 'smoke' | 'ember' | 'burning';
-  weather: WeatherId;
-  windy: boolean;
-  raining: boolean;
+  /** 木々の揺れ・砂埃の強さ 0(無風) 〜 約1.7(嵐) */
+  windAmp: number;
+  /** 雨粒の強さ 0(なし) 〜 約1.7(嵐) */
+  rainAmp: number;
 }
 
-const MAX_PARTICLES = 260;
+const MAX_PARTICLES = 320;
 
 export class FireCanvas {
   private ctx: CanvasRenderingContext2D;
@@ -30,7 +31,7 @@ export class FireCanvas {
   private w = 0;
   private h = 0;
   private dpr = Math.min(window.devicePixelRatio || 1, 2);
-  private state: FireVisualState = { fire: 0, phase: 'idle', weather: 'sunny', windy: false, raining: false };
+  private state: FireVisualState = { fire: 0, phase: 'idle', windAmp: 0.15, rainAmp: 0 };
   private windPhase = 0;
   private canvas: HTMLCanvasElement;
 
@@ -81,10 +82,9 @@ export class FireCanvas {
 
   private update(dtMs: number): void {
     const dt = dtMs / 1000;
-    const { fire, phase, windy, raining } = this.state;
+    const { fire, phase, windAmp, rainAmp } = this.state;
     this.windPhase += dt;
-    const windStrength = windy ? 1 : 0.25;
-    const windDrift = Math.sin(this.windPhase * 1.3) * windStrength * 40;
+    const windDrift = Math.sin(this.windPhase * 1.3) * windAmp * 40;
 
     if (this.particles.length < MAX_PARTICLES) {
       if (phase === 'burning') {
@@ -98,9 +98,13 @@ export class FireCanvas {
         if (Math.random() < 0.9) this.emitSmoke(5, windDrift);
       }
 
-      if (raining && this.particles.length < MAX_PARTICLES) {
-        const rainCount = this.state.weather === 'storm' ? 5 : 2;
-        for (let i = 0; i < rainCount; i++) this.emitRain(windDrift);
+      if (rainAmp > 0.05) {
+        const rainCount = Math.round(2 + rainAmp * 3);
+        for (let i = 0; i < rainCount; i++) this.emitRain(windDrift, rainAmp);
+      }
+
+      if (windAmp > 0.4 && Math.random() < windAmp * 0.35) {
+        this.emitLeaf(windDrift);
       }
     }
 
@@ -108,12 +112,17 @@ export class FireCanvas {
       p.life -= dtMs;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+      p.rotation += p.rotationSpeed * dt;
       if (p.kind === 'flame' || p.kind === 'smoke' || p.kind === 'spark') {
         p.vx += windDrift * dt * 0.6;
         p.vy -= (p.kind === 'smoke' ? 8 : 20) * dt;
       }
       if (p.kind === 'rain') {
         p.vx = windDrift * 1.5;
+      }
+      if (p.kind === 'leaf') {
+        p.vx += windDrift * dt * 0.8;
+        p.vy += 26 * dt;
       }
     }
     this.particles = this.particles.filter((p) => p.life > 0 && p.y > -40 && p.y < this.h + 40);
@@ -131,6 +140,8 @@ export class FireCanvas {
       size: 6 + Math.random() * (6 + fire * 0.12),
       kind: 'flame',
       hue: 18 + Math.random() * 40,
+      rotation: 0,
+      rotationSpeed: 0,
     });
   }
 
@@ -145,6 +156,8 @@ export class FireCanvas {
       size: 1.5 + Math.random() * 1.8,
       kind: 'spark',
       hue: 40 + Math.random() * 20,
+      rotation: 0,
+      rotationSpeed: 0,
     });
   }
 
@@ -159,20 +172,40 @@ export class FireCanvas {
       size: 10 + Math.random() * 16,
       kind: 'smoke',
       hue: 0,
+      rotation: 0,
+      rotationSpeed: 0,
     });
   }
 
-  private emitRain(windDrift: number): void {
+  private emitRain(windDrift: number, rainAmp: number): void {
     this.particles.push({
       x: Math.random() * this.w,
       y: -10,
       vx: windDrift * 1.5,
-      vy: 420 + Math.random() * 160,
+      vy: 420 + Math.random() * 160 + rainAmp * 60,
       life: 1200,
       maxLife: 1200,
       size: 1,
       kind: 'rain',
       hue: 0,
+      rotation: 0,
+      rotationSpeed: 0,
+    });
+  }
+
+  private emitLeaf(windDrift: number): void {
+    this.particles.push({
+      x: windDrift >= 0 ? -10 : this.w + 10,
+      y: Math.random() * this.h * 0.7,
+      vx: (windDrift >= 0 ? 1 : -1) * (60 + Math.random() * 60) + windDrift,
+      vy: 10 + Math.random() * 20,
+      life: 2200 + Math.random() * 1000,
+      maxLife: 3200,
+      size: 4 + Math.random() * 3,
+      kind: 'leaf',
+      hue: 30 + Math.random() * 50,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 6,
     });
   }
 
@@ -229,6 +262,15 @@ export class FireCanvas {
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(p.x - p.vx * 0.03, p.y - 14);
         ctx.stroke();
+      } else if (p.kind === 'leaf') {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = `hsla(${p.hue}, 55%, 45%, ${0.7 * lifeRatio})`;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
     }
     ctx.globalAlpha = 1;

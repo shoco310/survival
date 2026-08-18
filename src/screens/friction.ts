@@ -1,7 +1,7 @@
 import { store } from '../state';
 import { startTimerDisplay, weatherChipHtml, clamp } from '../ui';
 import { GAME_CONFIG } from '../config';
-import { averageQuality } from '../materials';
+import { aggregateByRole, frictionIgnitionFactor } from '../materials';
 import { frictionWeatherMultiplier } from '../weather';
 import type { ScreenContext, Unmount } from './context';
 
@@ -16,24 +16,16 @@ export function mountFriction(root: HTMLElement, ctx: ScreenContext): Unmount {
   let finished = false;
   state.frictionMetrics.startedAt = Date.now();
 
-  const qualityMultiplier = Math.max(0.2, averageQuality(state.collectedMaterials) / cfg.qualityNormalizer);
   const equipmentMultiplier = hasFireKit ? GAME_CONFIG.equipment.fire.frictionRateMultiplier : 1;
-  const weatherMultiplier = frictionWeatherMultiplier(state.weather, hasShelter);
   const decayMultiplier = hasFood ? GAME_CONFIG.equipment.food.heatDecayMultiplier : 1;
 
-  ctx.setFireVisual({
-    phase: heat > 0 ? 'smoke' : 'idle',
-    fire: 0,
-    weather: state.weather,
-    windy: state.weather === 'wind',
-    raining: state.weather === 'rain' || state.weather === 'storm',
-  });
+  ctx.setFireVisual({ phase: heat > 0 ? 'smoke' : 'idle', fire: 0 });
   ctx.setAmbient(0);
 
   root.innerHTML = `
     <div class="screen">
       <div class="hud">
-        <span>${weatherChipHtml(state.weather)}</span>
+        <span id="weather-chip">${weatherChipHtml(state.weather)}</span>
         <span class="timer" id="friction-timer">00:00.00</span>
       </div>
       <div class="step-title">摩擦で火種を作れ</div>
@@ -54,6 +46,8 @@ export function mountFriction(root: HTMLElement, ctx: ScreenContext): Unmount {
   const zone = root.querySelector<HTMLElement>('#friction-zone')!;
   const heatFill = root.querySelector<HTMLElement>('#heat-fill')!;
   const heatValue = root.querySelector<HTMLElement>('#heat-value')!;
+  const weatherChipEl = root.querySelector<HTMLElement>('#weather-chip')!;
+  let lastRenderedWeather = state.weather;
 
   let pointerActive = false;
   let lastX = 0;
@@ -61,7 +55,10 @@ export function mountFriction(root: HTMLElement, ctx: ScreenContext): Unmount {
   let lastMoveAt = performance.now();
 
   const registerSwipe = () => {
-    const gain = cfg.baseSwipeGain * qualityMultiplier * equipmentMultiplier * weatherMultiplier;
+    const agg = aggregateByRole(state.collectedMaterials, state.wetness);
+    const ignitionFactor = frictionIgnitionFactor(agg);
+    const weatherMultiplier = frictionWeatherMultiplier(state.weather, hasShelter);
+    const gain = cfg.baseSwipeGain * ignitionFactor * equipmentMultiplier * weatherMultiplier;
     heat = clamp(heat + gain, 0, 100);
     lastMoveAt = performance.now();
     if (heat >= 100 && !finished) triggerSpark();
@@ -95,10 +92,10 @@ export function mountFriction(root: HTMLElement, ctx: ScreenContext): Unmount {
   zone.addEventListener('pointercancel', onPointerUp);
 
   let raf = 0;
-  let lastT = performance.now();
+  let lastFrameT = performance.now();
   const loop = (t: number) => {
-    const dt = Math.min(0.05, (t - lastT) / 1000);
-    lastT = t;
+    const dt = Math.min(0.05, (t - lastFrameT) / 1000);
+    lastFrameT = t;
 
     if (!finished) {
       const idleFor = performance.now() - lastMoveAt;
@@ -109,6 +106,11 @@ export function mountFriction(root: HTMLElement, ctx: ScreenContext): Unmount {
       heatValue.textContent = `${Math.round(heat)}%`;
       state.heat = heat;
       ctx.setFireVisual({ phase: heat > 30 ? 'smoke' : 'idle' });
+
+      if (state.weather !== lastRenderedWeather) {
+        lastRenderedWeather = state.weather;
+        weatherChipEl.innerHTML = weatherChipHtml(state.weather);
+      }
     }
 
     raf = requestAnimationFrame(loop);
@@ -127,8 +129,7 @@ export function mountFriction(root: HTMLElement, ctx: ScreenContext): Unmount {
 
     setTimeout(() => {
       ctx.setFireVisual({ phase: 'ember' });
-      const initialFire =
-        GAME_CONFIG.breath.initialEmberFire + (hasFireKit ? 3 : 0);
+      const initialFire = GAME_CONFIG.breath.initialEmberFire + (hasFireKit ? 3 : 0);
       state.sparked = true;
       state.fire = initialFire;
       state.oxygen = 0;

@@ -1,7 +1,7 @@
 import { store } from '../state';
 import { startTimerDisplay, weatherChipHtml, clamp } from '../ui';
 import { GAME_CONFIG } from '../config';
-import { averageQuality } from '../materials';
+import { aggregateByRole, fireGrowthFactor } from '../materials';
 import { fireGrowthWeatherMultiplier } from '../weather';
 import type { ScreenContext, Unmount } from './context';
 
@@ -18,21 +18,13 @@ export function mountBreath(root: HTMLElement, ctx: ScreenContext): Unmount {
   let finished = false;
   let extinguishFlash = false;
 
-  const qualityFactor = 0.7 + (averageQuality(state.collectedMaterials) / 100) * 0.6;
-
-  ctx.setFireVisual({
-    phase: fire >= 8 ? 'burning' : 'ember',
-    fire,
-    weather: state.weather,
-    windy: state.weather === 'wind',
-    raining: state.weather === 'rain' || state.weather === 'storm',
-  });
+  ctx.setFireVisual({ phase: fire >= 8 ? 'burning' : 'ember', fire });
   ctx.setAmbient(fire);
 
   root.innerHTML = `
     <div class="screen">
       <div class="hud">
-        <span>${weatherChipHtml(state.weather)}</span>
+        <span id="weather-chip">${weatherChipHtml(state.weather)}</span>
         <span class="timer" id="breath-timer">00:00.00</span>
       </div>
       <div class="step-title">息を吹いて火を育てろ</div>
@@ -58,6 +50,8 @@ export function mountBreath(root: HTMLElement, ctx: ScreenContext): Unmount {
   const oxygenValue = root.querySelector<HTMLElement>('#oxygen-value')!;
   const blowBtn = root.querySelector<HTMLButtonElement>('#blow-btn')!;
   const screenEl = root.querySelector<HTMLElement>('.screen')!;
+  const weatherChipEl = root.querySelector<HTMLElement>('#weather-chip')!;
+  let lastRenderedWeather = state.weather;
 
   let warningToast: HTMLElement | null = null;
   const showWarning = () => {
@@ -92,25 +86,27 @@ export function mountBreath(root: HTMLElement, ctx: ScreenContext): Unmount {
     lastT = t;
 
     if (!finished) {
-      oxygen = clamp(
-        oxygen + (holding ? cfg.blowRatePerSecond : -cfg.releaseDecayPerSecond) * dt,
-        0,
-        100,
-      );
+      // 環境ティッカー（突風など）が state.fire / state.oxygen を直接動かすことがあるので、
+      // 毎フレーム最新値を取り込んでから進行させる
+      fire = state.fire;
+      oxygen = state.oxygen;
+
+      oxygen = clamp(oxygen + (holding ? cfg.blowRatePerSecond : -cfg.releaseDecayPerSecond) * dt, 0, 100);
 
       state.breathMetrics.totalTicks += dt;
       const inSafeZone = oxygen >= cfg.safeZoneMin && oxygen <= cfg.safeZoneMax;
       if (inSafeZone) state.breathMetrics.safeZoneTicks += dt;
 
+      const agg = aggregateByRole(state.collectedMaterials, state.wetness);
       if (inSafeZone) {
         const growth =
           cfg.fireGrowthPerSecond *
-          qualityFactor *
+          fireGrowthFactor(fire, agg) *
           fireGrowthWeatherMultiplier(state.weather, hasShelter, fire) *
           dt;
         fire = clamp(fire + growth, 0, 100);
       } else if (oxygen < 10) {
-        fire = clamp(fire - GAME_CONFIG.breath.starveShrinkPerSecond * 0.5 * dt, 0, 100);
+        fire = clamp(fire - cfg.starveShrinkPerSecond * 0.5 * dt, 0, 100);
       }
 
       if (oxygen > cfg.overblowThreshold) {
@@ -147,6 +143,11 @@ export function mountBreath(root: HTMLElement, ctx: ScreenContext): Unmount {
       oxygenFill.classList.toggle('warn', oxygen > cfg.overblowThreshold);
       oxygenValue.textContent = `${Math.round(oxygen)}%`;
 
+      if (state.weather !== lastRenderedWeather) {
+        lastRenderedWeather = state.weather;
+        weatherChipEl.innerHTML = weatherChipHtml(state.weather);
+      }
+
       if (extinguishFlash) {
         fireValueEl.style.color = 'var(--danger)';
         setTimeout(() => (fireValueEl.style.color = ''), 400);
@@ -174,6 +175,7 @@ export function mountBreath(root: HTMLElement, ctx: ScreenContext): Unmount {
   function cleanup() {
     cancelAnimationFrame(raf);
     stopTimer();
+    hideWarning();
     blowBtn.removeEventListener('pointerdown', onDown);
     blowBtn.removeEventListener('pointerup', onUp);
     blowBtn.removeEventListener('pointercancel', onUp);

@@ -1,25 +1,32 @@
 import { GAME_CONFIG } from './config';
 import { formatTime } from './scoring';
-import type { ScoreBreakdown } from './types';
+import { WEATHER_META } from './weather';
+import type { ScoreBreakdown, WeatherId } from './types';
 
-export function buildShareText(elapsedMs: number, score: ScoreBreakdown): string {
-  const hashtags = GAME_CONFIG.share.hashtags.map((h) => `#${h}`).join(' ');
+export function buildShareBody(elapsedMs: number, score: ScoreBreakdown, weather: WeatherId): string {
+  const hashtags = GAME_CONFIG.share.hashtags.map((h) => `#${h}`).join('\n');
+  const w = WEATHER_META[weather];
   return [
-    `🔥 無人島で火を起こしました！`,
+    `🔥 無人島で火を起こした！`,
     ``,
-    `🔥 FIRE TIME：${formatTime(elapsedMs).replace(':', '分').replace('.', '秒')}`,
+    `⏱ FIRE TIME：${formatTime(elapsedMs)}`,
     `🏆 サバイバル力：${score.total}点`,
     `🌴 RANK：${score.rank}`,
+    `${w.emoji} WEATHER：${w.label}`,
     ``,
-    `あなたは火を起こせる？`,
+    `あなたは夜になる前に火を起こせる？`,
     ``,
     hashtags,
   ].join('\n');
 }
 
-export async function shareResult(elapsedMs: number, score: ScoreBreakdown): Promise<'shared' | 'copied' | 'failed'> {
-  const text = buildShareText(elapsedMs, score);
-  const url = location.href.split('?')[0];
+export async function shareResult(
+  elapsedMs: number,
+  score: ScoreBreakdown,
+  weather: WeatherId,
+): Promise<'shared' | 'copied' | 'failed'> {
+  const text = buildShareBody(elapsedMs, score, weather);
+  const url = GAME_CONFIG.share.url;
 
   if (navigator.share) {
     try {
@@ -32,16 +39,16 @@ export async function shareResult(elapsedMs: number, score: ScoreBreakdown): Pro
   }
 
   try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
+    await navigator.clipboard.writeText(`${text}\n\n${url}`);
     return 'copied';
   } catch {
     return 'failed';
   }
 }
 
-export function twitterShareUrl(elapsedMs: number, score: ScoreBreakdown): string {
-  const text = buildShareText(elapsedMs, score);
-  const url = location.href.split('?')[0];
+export function twitterShareUrl(elapsedMs: number, score: ScoreBreakdown, weather: WeatherId): string {
+  const text = buildShareBody(elapsedMs, score, weather);
+  const url = GAME_CONFIG.share.url;
   const params = new URLSearchParams({ text, url });
   return `https://twitter.com/intent/tweet?${params.toString()}`;
 }

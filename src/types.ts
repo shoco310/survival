@@ -4,23 +4,34 @@ export type EquipmentId = 'fire' | 'food' | 'shelter';
 
 export type WeatherId = 'sunny' | 'wind' | 'rain' | 'storm';
 
+export type MaterialRole = 'tinder' | 'kindling' | 'fuel';
+
 export interface Material {
   id: string;
   emoji: string;
   label: string;
-  /** 燃焼/着火効率 0-100。摩擦フェーズの熱上昇速度と判断力スコアに使われる */
+  /** その役割の中での燃焼/着火効率 0-100 */
+  quality: number;
+  role: MaterialRole;
+  /** 雨・豪雨で時間経過とともに効果が落ちるか */
+  wetSensitive: boolean;
+}
+
+export interface RoleAggregate {
+  count: number;
   quality: number;
 }
 
-export interface GatherLogEntry {
-  materialId: string;
-  quality: number;
+export type RoleAggregates = Record<MaterialRole, RoleAggregate>;
+
+export interface WeatherEvent {
+  atSeconds: number;
+  next: WeatherId;
 }
 
 export interface FrictionMetrics {
   startedAt: number;
   finishedAt: number | null;
-  decayEvents: number;
 }
 
 export interface BreathMetrics {
@@ -35,9 +46,17 @@ export interface GameState {
 
   equipment: EquipmentId | null;
   weather: WeatherId;
+  weatherTimeline: WeatherEvent[];
+  weatherEventIndex: number;
+
+  gustNextAt: number;
+  gustUntil: number;
+  lightningNextAt: number;
+  lightningUntil: number;
+  wetness: number; // 0-100
 
   materialsPool: Material[];
-  collectedMaterials: GatherLogEntry[];
+  collectedMaterials: Material[];
 
   startTime: number | null;
   finishTime: number | null;

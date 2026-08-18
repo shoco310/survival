@@ -67,7 +67,7 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
           <div class="meta-item"><div class="k">🎒 装備</div>${EQUIPMENT_LABEL[state.equipment ?? 'food']}</div>
           <div class="meta-item"><div class="k">🌦️ 天候</div>${WEATHER_META[state.weather].emoji} ${WEATHER_META[state.weather].label}</div>
           <div class="meta-item" style="grid-column:1/-1;"><div class="k">🌿 集めた素材</div>${state.collectedMaterials
-            .map((m) => GAME_CONFIG.materials.pool.find((p) => p.id === m.materialId)?.emoji ?? '')
+            .map((m) => m.emoji)
             .join(' ')}</div>
         </div>
 
@@ -94,13 +94,13 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   const retryBtn = root.querySelector<HTMLButtonElement>('#retry-btn')!;
 
   const onShare = async () => {
-    const result = await shareResult(elapsedMs, score);
+    const result = await shareResult(elapsedMs, score, state.weather);
     if (result === 'copied') {
       shareBtn.textContent = 'コピーしました！';
       setTimeout(() => (shareBtn.textContent = '結果をシェア'), 1600);
     }
   };
-  const onTwitter = () => window.open(twitterShareUrl(elapsedMs, score), '_blank', 'noopener');
+  const onTwitter = () => window.open(twitterShareUrl(elapsedMs, score, state.weather), '_blank', 'noopener');
   const onRetry = () => store.reset();
 
   shareBtn.addEventListener('click', onShare);

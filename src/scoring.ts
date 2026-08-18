@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from './config';
-import { averageQuality } from './materials';
+import { averageQuality, roleCoverageCount } from './materials';
 import type { GameState, ScoreBreakdown } from './types';
 
 function clamp(value: number, min: number, max: number): number {
@@ -9,9 +9,12 @@ function clamp(value: number, min: number, max: number): number {
 export function computeScore(state: GameState): ScoreBreakdown {
   const w = GAME_CONFIG.score.weights;
 
-  // 判断力：集めた素材の平均品質
+  // 判断力：素材の平均品質 + 火口/焚き付け/燃料をバランスよく揃えられたか
   const quality = averageQuality(state.collectedMaterials); // 0-100
-  const judgement = Math.round((quality / 100) * w.judgement);
+  const balance = (roleCoverageCount(state.collectedMaterials) / 3) * 100; // 0-100
+  const judgementRaw =
+    quality * GAME_CONFIG.score.judgementQualityWeight + balance * GAME_CONFIG.score.judgementBalanceWeight;
+  const judgement = Math.round((clamp(judgementRaw, 0, 100) / 100) * w.judgement);
 
   // 火おこし技術：摩擦フェーズの所要時間（速いほど高得点）
   const frictionSeconds =

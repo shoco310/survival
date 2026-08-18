@@ -11,7 +11,7 @@ const EQUIPMENT_META: Record<EquipmentId, { emoji: string; label: string; desc: 
 };
 
 export function mountStart(root: HTMLElement, ctx: ScreenContext): Unmount {
-  ctx.setFireVisual({ phase: 'idle', fire: 0, windy: false, raining: false });
+  ctx.setFireVisual({ phase: 'idle', fire: 0 });
   ctx.setAmbient(0);
 
   const state = store.state;
@@ -23,8 +23,9 @@ export function mountStart(root: HTMLElement, ctx: ScreenContext): Unmount {
         <h1>SURVIVE THE NIGHT</h1>
         <p>夜になる前に、火を起こせ。</p>
       </div>
-      <div style="display:flex;justify-content:center;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
         ${weatherChipHtml(state.weather)}
+        <span class="weather-note">※天候は途中で変わることがある</span>
       </div>
       <div class="equipment-grid">
         ${(['fire', 'food', 'shelter'] as EquipmentId[])

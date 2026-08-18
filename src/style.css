@@ -49,19 +49,87 @@ body {
   z-index: 1;
 }
 
-#warm-overlay {
+#tree-layer {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 2;
+  overflow: hidden;
+}
+
+.tree {
+  position: absolute;
+  bottom: -2%;
+  width: 26vw;
+  max-width: 160px;
+  height: 46vh;
+  transform-origin: bottom center;
+  opacity: 0.85;
+  filter: blur(0.3px);
+  background: linear-gradient(180deg, rgba(10, 14, 12, 0.96), rgba(6, 9, 8, 0.98));
+  clip-path: polygon(50% 0%, 62% 18%, 56% 18%, 72% 38%, 63% 38%, 82% 62%, 68% 60%, 100% 100%, 0% 100%, 32% 60%, 18% 62%, 37% 38%, 28% 38%, 44% 18%, 38% 18%);
+}
+.tree.t1 { left: -4%; width: 30vw; }
+.tree.t2 { left: 18%; height: 34vh; opacity: 0.6; }
+.tree.t3 { right: -6%; width: 32vw; }
+.tree.t4 { right: 20%; height: 30vh; opacity: 0.55; }
+
+#night-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.05;
+  transition: opacity 1.2s linear;
+  background: radial-gradient(120% 80% at 50% 20%, rgba(6, 8, 18, 0) 0%, rgba(4, 5, 12, 0.65) 60%, rgba(2, 3, 8, 0.92) 100%);
+}
+
+#warm-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
   opacity: 0;
   transition: opacity 0.4s ease;
-  background: radial-gradient(120% 90% at 50% 100%, rgba(255, 120, 40, 0.35) 0%, rgba(255, 90, 20, 0.12) 40%, rgba(0, 0, 0, 0) 70%);
+  background: radial-gradient(120% 90% at 50% 100%, rgba(255, 130, 40, 0.4) 0%, rgba(255, 90, 20, 0.14) 40%, rgba(0, 0, 0, 0) 70%);
+}
+
+#lightning-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  background: #eef3ff;
+}
+
+#center-toast {
+  position: fixed;
+  top: 32%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.94);
+  z-index: 7;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: rgba(10, 12, 22, 0.78);
+  border: 1px solid rgba(255, 210, 150, 0.25);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+}
+#center-toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 #screen-root {
   position: relative;
-  z-index: 3;
+  z-index: 5;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -176,7 +244,13 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 999px;
   padding: 6px 14px;
-  margin-bottom: 18px;
+}
+
+.weather-note {
+  font-size: 11px;
+  color: var(--ink-dim);
+  opacity: 0.7;
+  margin-bottom: 12px;
 }
 
 /* ---------- Generic layout ---------- */
@@ -213,45 +287,68 @@ body {
 
 /* ---------- Gather screen ---------- */
 
-.material-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 10px;
+.material-scatter {
+  position: relative;
+  flex: 1;
+  min-height: 46vh;
+  margin-top: 6px;
 }
 
-.material-card {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 14px 8px;
-  text-align: center;
-  color: var(--ink);
-  transition: transform 0.12s ease, opacity 0.2s ease;
-}
-
-.material-card .emoji {
-  font-size: 30px;
-  display: block;
-  margin-bottom: 6px;
-}
-
-.material-card .label {
-  font-size: 12px;
+.material-item {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
   color: var(--ink-dim);
+  padding: 6px;
+  transition: transform 0.18s ease, opacity 0.25s ease, filter 0.18s ease;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
 }
 
-.material-card:active {
-  transform: scale(0.94);
+.material-item .emoji {
+  font-size: 32px;
+  line-height: 1;
+  display: block;
 }
 
-.material-card.picked {
-  opacity: 0.25;
+.material-item .label {
+  font-size: 10px;
+  white-space: nowrap;
+  background: rgba(10, 12, 20, 0.55);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.material-item:active {
+  transform: translate(-50%, -50%) scale(0.9) !important;
+}
+
+.material-item.picked {
+  animation: pickedPulse 0.5s ease forwards;
   pointer-events: none;
 }
 
+@keyframes pickedPulse {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(255, 180, 70, 0));
+  }
+  40% {
+    transform: translate(-50%, -60%) scale(1.35) !important;
+    filter: drop-shadow(0 0 16px rgba(255, 180, 70, 0.9));
+  }
+  100% {
+    transform: translate(-50%, -80%) scale(0.6) !important;
+    opacity: 0;
+    filter: drop-shadow(0 0 4px rgba(255, 180, 70, 0));
+  }
+}
+
 .pick-progress {
-  margin-top: 20px;
+  margin-top: 4px;
+  margin-bottom: 4px;
   text-align: center;
   font-size: 14px;
   color: var(--ink-dim);
@@ -260,15 +357,6 @@ body {
 .pick-progress b {
   color: var(--accent);
   font-size: 18px;
-}
-
-.collected-row {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 10px;
-  min-height: 28px;
-  font-size: 22px;
 }
 
 /* ---------- Friction screen ---------- */
