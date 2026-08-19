@@ -3,6 +3,7 @@ import { GAME_CONFIG } from './config';
 import { computeAmbientIntensity, WEATHER_TRANSITION_TOAST } from './weather';
 import type { FireCanvas } from './fireCanvas';
 import { clamp } from './ui';
+import { audioEngine } from './audio';
 import type { GameState } from './types';
 
 function rand(min: number, max: number): number {
@@ -57,6 +58,8 @@ export class EnvironmentTicker {
 
     if (!active) {
       this.fireCanvas.setState({ windAmp: 0.15, rainAmp: 0 });
+      audioEngine.setWind(0);
+      audioEngine.setRain(0);
       this.updateTrees(0.15, now);
       this.els.night.style.opacity = '0.05';
       return;
@@ -82,6 +85,8 @@ export class EnvironmentTicker {
     const upcoming = state.weatherTimeline[state.weatherEventIndex] ?? null;
     const ambient = computeAmbientIntensity(state.weather, upcoming, elapsedSeconds);
     this.fireCanvas.setState({ windAmp: ambient.wind, rainAmp: ambient.rain });
+    audioEngine.setWind(ambient.wind);
+    audioEngine.setRain(ambient.rain);
     this.updateTrees(ambient.wind, now);
 
     this.els.night.style.opacity = String(this.computeDarkness(elapsedSeconds / budget, state.weather));
