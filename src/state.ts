@@ -6,8 +6,10 @@ type Listener = () => void;
 function createInitialState(): GameState {
   const weather = rollWeather();
   return {
-    screen: 'start',
+    screen: 'title',
     debug: new URLSearchParams(location.search).get('debug') === 'true',
+
+    fieldPhase: 'item_selection',
 
     equipment: null,
     weather,
@@ -25,14 +27,18 @@ function createInitialState(): GameState {
 
     startTime: null,
     finishTime: null,
+    sunsetAt: null,
+    gameOverReason: null,
 
-    firePhase: 'rotate',
+    stamina: 100,
+
     heat: 0,
     fire: 0,
     oxygen: 0,
     sparked: false,
 
     rotateResetCount: 0,
+    kindlingLog: [],
 
     rotateMetrics: { startedAt: 0, finishedAt: null },
     breathMetrics: { totalTicks: 0, safeZoneTicks: 0 },

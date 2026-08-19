@@ -1,6 +1,7 @@
 /**
  * ランク（スコア称号）ごとの見た目・コメントのプリセット。
  * 結果画面の一言診断とResult Card画像の両方から参照される、単一の情報源。
+ * キーは GAME_CONFIG.ranks の英語タイトル（例: "PRIMAL LEGEND"）。
  */
 export interface RankPreset {
   /** キャラクター画像のファイル名（拡張子なし） */
@@ -14,37 +15,37 @@ export interface RankPreset {
 }
 
 export const RANK_PRESETS: Record<string, RankPreset> = {
-  都会に帰ろう: {
+  'LOST TOURIST': {
     key: 'civilization-survivor',
     characterImage: '/characters/civilization-survivor.webp',
-    comment: '無人島はあなたに向いていないかもしれない。\n次はマッチを持ってこよう。',
+    comment: '森はあなたに向いていないかもしれない。\n次はマッチを持ってこよう。',
     fireLevel: 0,
   },
-  キャンプ初心者: {
+  'CAMP ROOKIE': {
     key: 'rookie-survivor',
     characterImage: '/characters/rookie-survivor.webp',
     comment: '小さな火種はつかんだ。\n次はもっとうまくやれるはずだ。',
     fireLevel: 1,
   },
-  サバイバー: {
+  'FIRE STARTER': {
     key: 'campfire-survivor',
     characterImage: '/characters/campfire-survivor.webp',
     comment: '火は起こせる。\n生き残る準備はできてきた。',
     fireLevel: 2,
   },
-  ワイルドサバイバー: {
+  'WILDERNESS SURVIVOR': {
     key: 'wild-survivor',
     characterImage: '/characters/wild-survivor.webp',
     comment: 'あなたは悪条件の中でも火を起こした。\n今夜は生き延びられそうだ。',
     fireLevel: 3,
   },
-  サバイバルマスター: {
+  'SURVIVAL EXPERT': {
     key: 'survival-master',
     characterImage: '/characters/survival-master.webp',
-    comment: '見事な火おこし。\n島の動物たちもあなたを一目置いている。',
+    comment: '見事な火おこし。\n森の動物たちもあなたを一目置いている。',
     fireLevel: 4,
   },
-  人類代表: {
+  'PRIMAL LEGEND': {
     key: 'humanity-champion',
     characterImage: '/characters/humanity-champion.webp',
     comment: 'プロメテウスもきっと驚く手際。\n人類の火の歴史に、あなたの名が刻まれた。',
@@ -53,5 +54,5 @@ export const RANK_PRESETS: Record<string, RankPreset> = {
 };
 
 export function getRankPreset(rank: string): RankPreset {
-  return RANK_PRESETS[rank] ?? RANK_PRESETS['サバイバー'];
+  return RANK_PRESETS[rank] ?? RANK_PRESETS['FIRE STARTER'];
 }

@@ -53,10 +53,7 @@ export class EnvironmentTicker {
 
   private tick(dtMs: number, now: number): void {
     const state = store.state;
-    const active =
-      (state.screen === 'gather' || state.screen === 'firepit') &&
-      state.startTime != null &&
-      state.finishTime == null;
+    const active = state.screen === 'field' && state.startTime != null && state.finishTime == null;
 
     if (!active) {
       this.fireCanvas.setState({ windAmp: 0.15, rainAmp: 0 });
@@ -65,7 +62,17 @@ export class EnvironmentTicker {
       return;
     }
 
-    const elapsedSeconds = (now - state.startTime!) / 1000;
+    // state.startTime is a Date.now() epoch timestamp, but `now` here comes from
+    // requestAnimationFrame (relative to navigation start) — they must not be mixed,
+    // or every elapsed-time-driven system (sunset countdown, weather timeline, night
+    // darkness) silently breaks. Recompute against the same clock as state.startTime.
+    const elapsedSeconds = (Date.now() - state.startTime!) / 1000;
+    const budget = GAME_CONFIG.sunset.budgetSeconds;
+
+    if (elapsedSeconds >= budget) {
+      store.set({ screen: 'gameover', gameOverReason: 'sunset' });
+      return;
+    }
 
     this.advanceWeather(state, elapsedSeconds);
     this.accumulateWetness(state, dtMs);
@@ -77,7 +84,7 @@ export class EnvironmentTicker {
     this.fireCanvas.setState({ windAmp: ambient.wind, rainAmp: ambient.rain });
     this.updateTrees(ambient.wind, now);
 
-    this.els.night.style.opacity = String(this.computeDarkness(elapsedSeconds, state.weather));
+    this.els.night.style.opacity = String(this.computeDarkness(elapsedSeconds / budget, state.weather));
   }
 
   private advanceWeather(state: GameState, elapsedSeconds: number): void {
@@ -164,17 +171,17 @@ export class EnvironmentTicker {
     });
   }
 
-  private computeDarkness(elapsedSeconds: number, weather: GameState['weather']): number {
+  private computeDarkness(elapsedRatio: number, weather: GameState['weather']): number {
     const bps = GAME_CONFIG.nightCycle.breakpoints;
     let d: number = bps[0].darkness;
-    if (elapsedSeconds >= bps[bps.length - 1].atSeconds) {
+    if (elapsedRatio >= bps[bps.length - 1].atRatio) {
       d = bps[bps.length - 1].darkness;
     } else {
       for (let i = 0; i < bps.length - 1; i++) {
         const a = bps[i];
         const b = bps[i + 1];
-        if (elapsedSeconds >= a.atSeconds && elapsedSeconds <= b.atSeconds) {
-          const p = (elapsedSeconds - a.atSeconds) / (b.atSeconds - a.atSeconds);
+        if (elapsedRatio >= a.atRatio && elapsedRatio <= b.atRatio) {
+          const p = (elapsedRatio - a.atRatio) / (b.atRatio - a.atRatio);
           d = a.darkness + (b.darkness - a.darkness) * p;
           break;
         }

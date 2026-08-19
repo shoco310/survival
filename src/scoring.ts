@@ -8,42 +8,56 @@ function clamp(value: number, min: number, max: number): number {
 
 export function computeScore(state: GameState): ScoreBreakdown {
   const w = GAME_CONFIG.score.weights;
+  const S = GAME_CONFIG.score;
 
-  // 判断力：素材の平均品質 + 火口/焚き付け/燃料をバランスよく揃えられたか
+  // MATERIAL CHOICE：素材の平均品質 + 火口/焚き付け/燃料をバランスよく揃えられたか
   const quality = averageQuality(state.collectedMaterials); // 0-100
   const balance = (roleCoverageCount(state.collectedMaterials) / 3) * 100; // 0-100
-  const judgementRaw =
-    quality * GAME_CONFIG.score.judgementQualityWeight + balance * GAME_CONFIG.score.judgementBalanceWeight;
-  const judgement = Math.round((clamp(judgementRaw, 0, 100) / 100) * w.judgement);
+  const materialChoiceRaw = quality * S.judgementQualityWeight + balance * S.judgementBalanceWeight;
+  const materialChoice = Math.round((clamp(materialChoiceRaw, 0, 100) / 100) * w.materialChoice);
 
-  // 火おこし技術：回転フェーズの所要時間（速いほど高得点）。摩擦へ後戻りした回数も減点
+  // FIREMAKING：回転フェーズの所要時間（速いほど高得点）。摩擦へ後戻りした回数も減点
   const rotateSeconds =
     state.rotateMetrics.finishedAt != null
       ? (state.rotateMetrics.finishedAt - state.rotateMetrics.startedAt) / 1000
-      : GAME_CONFIG.score.idealFrictionSeconds * 3;
-  const rotateOver = Math.max(0, rotateSeconds - GAME_CONFIG.score.idealFrictionSeconds);
-  const techniqueRaw =
-    100 - rotateOver * GAME_CONFIG.score.frictionPenaltyPerSecond - state.rotateResetCount * 12;
-  const technique = Math.round((clamp(techniqueRaw, 0, 100) / 100) * w.technique);
+      : S.idealFrictionSeconds * 3;
+  const rotateOver = Math.max(0, rotateSeconds - S.idealFrictionSeconds);
+  const firemakingRaw = 100 - rotateOver * S.frictionPenaltyPerSecond - state.rotateResetCount * S.resetPenalty;
+  const firemaking = Math.round((clamp(firemakingRaw, 0, 100) / 100) * w.firemaking);
 
-  // 火の管理：息の吹き方が理想の酸素量にどれだけ近かったか（平均効率）
-  const managementRaw =
+  // BREATH CONTROL：酸素量が理想値にどれだけ近かったかの平均効率
+  const breathControlRaw =
     state.breathMetrics.totalTicks > 0
       ? (state.breathMetrics.safeZoneTicks / state.breathMetrics.totalTicks) * 100
       : 0;
-  const management = Math.round((clamp(managementRaw, 0, 100) / 100) * w.management);
+  const breathControl = Math.round((clamp(breathControlRaw, 0, 100) / 100) * w.breathControl);
 
-  // スピード：クリアタイム
+  // FIRE MANAGEMENT：薪投入は任意行動。使った場合はタイミングの良し悪しで、使わなければ中立点
+  const fireManagementRaw =
+    state.kindlingLog.length === 0
+      ? S.kindlingNeutralScore
+      : (state.kindlingLog.filter((k) => k.goodTiming).length / state.kindlingLog.length) * 100;
+  const fireManagement = Math.round((clamp(fireManagementRaw, 0, 100) / 100) * w.fireManagement);
+
+  // SURVIVAL IQ：装備と天候の相性、後戻りの少なさ
+  let synergy = 0;
+  if (state.equipment === 'shelter' && (state.weather === 'rain' || state.weather === 'storm')) synergy = S.survivalIQSynergyBonus;
+  else if (state.equipment === 'food') synergy = S.survivalIQSynergyBonus * 0.6;
+  else if (state.equipment === 'fire') synergy = S.survivalIQSynergyBonus * 0.4;
+  const survivalIQRaw = S.survivalIQBase + synergy - state.rotateResetCount * S.survivalIQResetPenalty;
+  const survivalIQ = Math.round((clamp(survivalIQRaw, 0, 100) / 100) * w.survivalIQ);
+
+  // TIME：日没までどれだけ余裕を残してクリアできたか
   const totalSeconds =
     state.startTime != null && state.finishTime != null ? (state.finishTime - state.startTime) / 1000 : 999;
-  const speedOver = Math.max(0, totalSeconds - GAME_CONFIG.score.speedFullMarkSeconds);
-  const speedRaw = 100 - speedOver * GAME_CONFIG.score.speedPenaltyPerSecond;
-  const speed = Math.round((clamp(speedRaw, 0, 100) / 100) * w.speed);
+  const remainingRatio = clamp(1 - totalSeconds / GAME_CONFIG.sunset.budgetSeconds, 0, 1);
+  const timeRaw = S.timeFullMarkRatio > 0 ? (remainingRatio / S.timeFullMarkRatio) * 100 : 100;
+  const time = Math.round((clamp(timeRaw, 0, 100) / 100) * w.time);
 
-  const total = clamp(judgement + technique + management + speed, 0, 100);
-  const rank = GAME_CONFIG.ranks.find((r) => total >= r.min && total <= r.max)?.title ?? 'サバイバー';
+  const total = clamp(firemaking + materialChoice + breathControl + fireManagement + survivalIQ + time, 0, 100);
+  const rank = GAME_CONFIG.ranks.find((r) => total >= r.min && total <= r.max)?.title ?? 'FIRE STARTER';
 
-  return { judgement, technique, management, speed, total, rank };
+  return { firemaking, materialChoice, breathControl, fireManagement, survivalIQ, time, total, rank };
 }
 
 export function formatTime(ms: number): string {
@@ -54,4 +68,11 @@ export function formatTime(ms: number): string {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centis
     .toString()
     .padStart(2, '0')}`;
+}
+
+export function formatClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}:${rem.toString().padStart(2, '0')}`;
 }

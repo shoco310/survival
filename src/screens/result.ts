@@ -8,6 +8,9 @@ import { generateResultCard } from '../share/ResultCardGenerator';
 import { shareResult, downloadResultCard, twitterShareUrl } from '../share';
 import type { ScreenContext, Unmount } from './context';
 
+const BEST_SCORE_KEY = 'survival-best-score';
+const BEST_RANK_KEY = 'survival-best-rank';
+
 export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   const state = store.state;
   const score = computeScore(state);
@@ -17,36 +20,46 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   ctx.setFireVisual({ phase: 'burning', fire: 100 });
   ctx.setAmbient(100);
 
-  const best = Number(localStorage.getItem(GAME_CONFIG.storageKey) ?? Infinity);
-  const isNewRecord = elapsedMs < best;
-  if (isNewRecord) localStorage.setItem(GAME_CONFIG.storageKey, String(elapsedMs));
-  const bestMs = isNewRecord ? elapsedMs : best;
+  const bestTimeMs = Number(localStorage.getItem(GAME_CONFIG.storageKey) ?? Infinity);
+  const bestScore = Number(localStorage.getItem(BEST_SCORE_KEY) ?? 0);
+  const isNewRecord = score.total > bestScore || elapsedMs < bestTimeMs;
+  if (score.total >= bestScore) {
+    localStorage.setItem(BEST_SCORE_KEY, String(score.total));
+    localStorage.setItem(BEST_RANK_KEY, score.rank);
+  }
+  if (elapsedMs < bestTimeMs) localStorage.setItem(GAME_CONFIG.storageKey, String(elapsedMs));
+  const shownBestScore = Math.max(score.total, bestScore);
+  const shownBestTimeMs = Math.min(elapsedMs, bestTimeMs);
 
   root.innerHTML = `
-    <div class="screen" style="position:relative;">
+    <div class="screen result-screen">
       <div id="success-flash" class="success-flash">
         <div class="fire-emoji">🔥</div>
-        <h2>FIRE!</h2>
-        <p>人類は火を手に入れた。</p>
-        <p>今夜、あなたは生き延びられる。</p>
+        <h2>YOU SURVIVED</h2>
+        <p>火を、起こした。</p>
       </div>
-      <div id="result-body" style="opacity:0;transition:opacity .5s ease;">
-        <div class="result-title">
-          <div class="badge">SURVIVAL RESULT</div>
-          <div class="time">${formatTime(elapsedMs)}</div>
-          ${isNewRecord ? '<div class="new-record">NEW RECORD!</div>' : ''}
-          <div class="best-line">BEST ${Number.isFinite(bestMs) ? formatTime(bestMs) : '--:--.--'}</div>
+      <div id="result-body" class="result-cinematic" style="opacity:0;">
+        <div class="result-character"><img src="${preset.characterImage}" alt="${score.rank}" /></div>
+
+        <div class="result-headline">
+          <div class="result-you-survived">YOU SURVIVED</div>
+          <div class="result-rank">${score.rank}</div>
+          ${isNewRecord ? '<div class="new-record">NEW RECORD</div>' : ''}
         </div>
 
+        <div class="result-stats-row">
+          <div class="result-stat"><span class="k">SCORE</span><span class="v">${score.total}</span></div>
+          <div class="result-stat"><span class="k">TIME</span><span class="v">${formatTime(elapsedMs)}</span></div>
+        </div>
+        <div class="best-line">BEST SCORE ${shownBestScore} ・ BEST TIME ${Number.isFinite(shownBestTimeMs) ? formatTime(shownBestTimeMs) : '--:--.--'}</div>
+
         <div class="score-panel">
-          <div class="score-total">
-            <div class="num">${score.total} / 100</div>
-            <div class="rank">${score.rank}</div>
-          </div>
-          ${scoreRow('判断力', score.judgement, 30)}
-          ${scoreRow('火おこし技術', score.technique, 25)}
-          ${scoreRow('火の管理', score.management, 25)}
-          ${scoreRow('スピード', score.speed, 20)}
+          ${scoreRow('FIREMAKING', score.firemaking, GAME_CONFIG.score.weights.firemaking)}
+          ${scoreRow('MATERIAL CHOICE', score.materialChoice, GAME_CONFIG.score.weights.materialChoice)}
+          ${scoreRow('BREATH CONTROL', score.breathControl, GAME_CONFIG.score.weights.breathControl)}
+          ${scoreRow('FIRE MANAGEMENT', score.fireManagement, GAME_CONFIG.score.weights.fireManagement)}
+          ${scoreRow('SURVIVAL IQ', score.survivalIQ, GAME_CONFIG.score.weights.survivalIQ)}
+          ${scoreRow('TIME', score.time, GAME_CONFIG.score.weights.time)}
         </div>
 
         <div class="flavor-text">${preset.comment.replace(/\n/g, '<br/>')}</div>
@@ -70,7 +83,7 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
           <button class="btn btn-primary" id="share-btn">📤 結果をシェア</button>
           <button class="btn btn-secondary" id="save-btn">🖼️ 結果画像を保存</button>
           <button class="btn btn-twitter" id="twitter-btn">𝕏 Xでシェア</button>
-          <button class="btn btn-secondary" id="retry-btn">🔥 もう一度挑戦</button>
+          <button class="btn btn-secondary" id="retry-btn">🔥 TRY AGAIN</button>
         </div>
       </div>
     </div>
@@ -79,11 +92,12 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   const successFlash = root.querySelector<HTMLElement>('#success-flash')!;
   const resultBody = root.querySelector<HTMLElement>('#result-body')!;
   const revealTimeout = setTimeout(() => {
-    successFlash.style.transition = 'opacity .5s ease';
+    successFlash.style.transition = 'opacity .6s ease';
     successFlash.style.opacity = '0';
+    resultBody.style.transition = 'opacity .6s ease';
     resultBody.style.opacity = '1';
-    setTimeout(() => successFlash.remove(), 500);
-  }, 1900);
+    setTimeout(() => successFlash.remove(), 600);
+  }, 1600);
 
   const shareBtn = root.querySelector<HTMLButtonElement>('#share-btn')!;
   const saveBtn = root.querySelector<HTMLButtonElement>('#save-btn')!;
@@ -149,12 +163,12 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
 }
 
 function scoreRow(name: string, value: number, max: number): string {
-  const pct = (value / max) * 100;
+  const pct = max > 0 ? (value / max) * 100 : 0;
   return `
     <div class="score-row">
       <span class="name">${name}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
-      <span>${value} / ${max}</span>
+      <span class="score-row-value">${value} / ${max}</span>
     </div>
   `;
 }

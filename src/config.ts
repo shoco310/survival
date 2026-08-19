@@ -86,18 +86,41 @@ export const GAME_CONFIG = {
     qualityPenaltyAtMax: 0.35,
   },
 
-  // タイムプレッシャー演出：経過時間による夜の暗さ（0=明るい,1=真っ暗に近い）
+  // 日没との競争。この秒数までに焚き火(fire>=100)を完成させないとGAME OVER
+  sunset: {
+    budgetSeconds: 200,
+    // HUDの時計表示の起点（この時刻からカウントダウンしているという体裁）
+    startClockHour: 18,
+    startClockMinute: 42,
+    // 残りこの秒数を切ったら時計表示を警告色にする
+    warningSeconds: 45,
+  },
+
+  // タイムプレッシャー演出：残り時間に応じた夜の暗さ（0=明るい,1=真っ暗に近い）
+  // sunset.budgetSecondsに対する経過割合で決まる（後述のenvironment.tsで算出）
   nightCycle: {
     breakpoints: [
-      { atSeconds: 0, darkness: 0.05 },
-      { atSeconds: 60, darkness: 0.32 },
-      { atSeconds: 120, darkness: 0.6 },
-      { atSeconds: 180, darkness: 0.82 },
+      { atRatio: 0, darkness: 0.05 },
+      { atRatio: 0.3, darkness: 0.32 },
+      { atRatio: 0.6, darkness: 0.6 },
+      { atRatio: 0.9, darkness: 0.82 },
     ],
     // 天候による追加の暗さ
     rainExtraDarkness: 0.12,
     stormExtraDarkness: 0.26,
     maxDarkness: 0.88,
+  },
+
+  // スタミナ：回転で消費し、止めると回復する。尽きると回転効率が落ちる（即ゲームオーバーにはしない）
+  stamina: {
+    drainPerSecondWhileRotating: 9,
+    recoverPerSecondWhileIdle: 14,
+    // これ未満まで消耗すると、回転の効率が落ち始める
+    tiredThreshold: 25,
+    // 完全に尽きたときの効率倍率の下限
+    exhaustedMultiplier: 0.45,
+    // FOOD装備時、消費量に掛かる倍率
+    foodDrainMultiplier: 0.6,
   },
 
   equipment: {
@@ -211,31 +234,53 @@ export const GAME_CONFIG = {
     starveShrinkPerSecond: 4,
   },
 
+  // PHASE: 小さな炎に、拾った焚き付け/燃料を任意でドラッグして投入できる（必須ではない）
+  kindling: {
+    // この火力に到達すると薪投入の演出が使えるようになる
+    unlocksAtFire: 15,
+    // 炎の中心からこの距離(px)以内にドロップすると受理される
+    dropZoneRadius: 100,
+    // タイミングが正しいときの火力ボーナス（息だけより明確に速く育つ）
+    goodBoost: 16,
+    // タイミングが早すぎる／太すぎるときの小さなペナルティ（消えはしない）
+    badPenalty: 5,
+    // 火力がこの値未満ならkindling、以上ならfuelが「正しいタイミング」
+    idealSwitchFire: 55,
+  },
+
   score: {
     weights: {
-      judgement: 30,
-      technique: 25,
-      management: 25,
-      speed: 20,
+      firemaking: 20,
+      materialChoice: 15,
+      breathControl: 20,
+      fireManagement: 15,
+      survivalIQ: 15,
+      time: 15,
     },
-    // 判断力：平均品質と役割バランス（火口+焚き付け+燃料が揃っているか）の重み
+    // MATERIAL CHOICE：平均品質と役割バランス（火口+焚き付け+燃料が揃っているか）の重み
     judgementQualityWeight: 0.65,
     judgementBalanceWeight: 0.35,
-    // 火おこし技術：想定される回転フェーズ所要時間(秒)。これより速いほど高得点
+    // FIREMAKING：想定される回転フェーズ所要時間(秒)。これより速いほど高得点。後戻り1回ごとに減点
     idealFrictionSeconds: 14,
     frictionPenaltyPerSecond: 3,
-    // スピード：この秒数以内ならフルスコア、以降1秒ごとに減点
-    speedFullMarkSeconds: 60,
-    speedPenaltyPerSecond: 0.55,
+    resetPenalty: 12,
+    // FIRE MANAGEMENT：薪を投入しなかった場合の中立点（任意行動なので大きく損はしない）
+    kindlingNeutralScore: 55,
+    // SURVIVAL IQ：装備と天候の相性が良かった場合のボーナス
+    survivalIQBase: 55,
+    survivalIQSynergyBonus: 30,
+    survivalIQResetPenalty: 10,
+    // TIME：日没までの残り時間の割合が多いほど高得点
+    timeFullMarkRatio: 0.6, // 残り60%以上の余裕でクリアすればフルスコア
   },
 
   ranks: [
-    { min: 0, max: 29, title: '都会に帰ろう' },
-    { min: 30, max: 49, title: 'キャンプ初心者' },
-    { min: 50, max: 69, title: 'サバイバー' },
-    { min: 70, max: 84, title: 'ワイルドサバイバー' },
-    { min: 85, max: 94, title: 'サバイバルマスター' },
-    { min: 95, max: 100, title: '人類代表' },
+    { min: 0, max: 19, title: 'LOST TOURIST', jp: '都会に帰ろう' },
+    { min: 20, max: 39, title: 'CAMP ROOKIE', jp: 'キャンプ初心者' },
+    { min: 40, max: 59, title: 'FIRE STARTER', jp: '火おこし見習い' },
+    { min: 60, max: 79, title: 'WILDERNESS SURVIVOR', jp: 'ワイルドサバイバー' },
+    { min: 80, max: 94, title: 'SURVIVAL EXPERT', jp: 'サバイバルエキスパート' },
+    { min: 95, max: 100, title: 'PRIMAL LEGEND', jp: '人類代表' },
   ],
 
   share: {

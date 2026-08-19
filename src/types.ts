@@ -1,4 +1,4 @@
-export type Screen = 'start' | 'gather' | 'firepit' | 'result';
+export type Screen = 'title' | 'field' | 'result' | 'gameover';
 
 export type EquipmentId = 'fire' | 'food' | 'shelter';
 
@@ -39,12 +39,24 @@ export interface BreathMetrics {
   safeZoneTicks: number;
 }
 
-/** 火おこし工程内の段階。中央のビジュアルステージがこの段階に応じて変化する */
-export type FirePhase = 'rotate' | 'breath';
+export interface KindlingLogEntry {
+  id: string;
+  goodTiming: boolean;
+}
+
+/**
+ * フィールド内部の進行段階。画面遷移ではなく、同じ森の中で連続的に切り替わる。
+ * 息吹き以降の炎の見た目段階（EMBER/FLAME/FIRE/CAMPFIRE）は `fire` の値から都度算出する。
+ */
+export type FieldPhase = 'item_selection' | 'gathering' | 'rotate' | 'breath';
+
+export type GameOverReason = 'sunset' | 'exhausted';
 
 export interface GameState {
   screen: Screen;
   debug: boolean;
+
+  fieldPhase: FieldPhase;
 
   equipment: EquipmentId | null;
   weather: WeatherId;
@@ -62,24 +74,31 @@ export interface GameState {
 
   startTime: number | null;
   finishTime: number | null;
+  /** この時刻(epoch ms)を過ぎると日没＝タイムオーバー */
+  sunsetAt: number | null;
+  gameOverReason: GameOverReason | null;
 
-  firePhase: FirePhase;
+  stamina: number; // 0-100。回転で消費、休むと回復。FOODで消費が減る
+
   heat: number; // 0-100 摩擦熱（回転で上昇）
   fire: number; // 0-100 火力（=中央の炎の大きさと同期。火種の勢いもこの値で兼ねる）
   oxygen: number; // 0-100 呼吸ゲージ
   sparked: boolean; // 火種ができたか
 
   rotateResetCount: number; // 火種が消えて摩擦フェーズへ戻った回数
+  kindlingLog: KindlingLogEntry[]; // 薪投入の履歴（任意行動。演出とボーナススコアに使用）
 
   rotateMetrics: RotateMetrics;
   breathMetrics: BreathMetrics;
 }
 
 export interface ScoreBreakdown {
-  judgement: number; // 判断力 /30
-  technique: number; // 火おこし技術 /25
-  management: number; // 火の管理 /25
-  speed: number; // スピード /20
+  firemaking: number; // 火おこし技術
+  materialChoice: number; // 素材選択
+  breathControl: number; // 息のコントロール
+  fireManagement: number; // 薪の投入
+  survivalIQ: number; // アイテム選択・天候対応
+  time: number; // クリア速度
   total: number; // /100
   rank: string;
 }

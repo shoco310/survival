@@ -69,6 +69,17 @@ export class FireCanvas {
     this.state = { ...this.state, ...next };
   }
 
+  /** 薪投入の瞬間演出。goodなら火の粉が一気に舞い、badなら煙がもくっと出る */
+  pulseKindling(good: boolean): void {
+    const windDrift = Math.sin(this.windPhase * 1.3) * this.state.windAmp * 40;
+    if (good) {
+      for (let i = 0; i < 14; i++) this.emitSpark(this.state.fire + 20, windDrift);
+      for (let i = 0; i < 4; i++) this.emitFlame(this.state.fire + 30, windDrift);
+    } else {
+      for (let i = 0; i < 8; i++) this.emitSmoke(this.state.fire + 10, windDrift);
+    }
+  }
+
   start(): void {
     this.lastT = performance.now();
     const loop = (t: number) => {

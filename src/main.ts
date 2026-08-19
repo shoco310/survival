@@ -3,10 +3,10 @@ import { store } from './state';
 import { FireCanvas, type FireVisualState } from './fireCanvas';
 import { EnvironmentTicker } from './environment';
 import { clamp } from './ui';
-import { mountStart } from './screens/start';
-import { mountGather } from './screens/gather';
-import { mountFirepit } from './screens/firepit';
+import { mountTitle } from './screens/title';
+import { mountField } from './screens/field';
 import { mountResult } from './screens/result';
+import { mountGameOver } from './screens/gameover';
 import { mountDebugPanel } from './screens/debug';
 import type { ScreenContext, Unmount } from './screens/context';
 import type { Screen } from './types';
@@ -55,10 +55,10 @@ const ctx: ScreenContext = {
 };
 
 const mounts: Record<Screen, (root: HTMLElement, ctx: ScreenContext) => Unmount> = {
-  start: mountStart,
-  gather: mountGather,
-  firepit: mountFirepit,
+  title: mountTitle,
+  field: mountField,
   result: mountResult,
+  gameover: mountGameOver,
 };
 
 let currentUnmount: Unmount | null = null;

@@ -1,0 +1,262 @@
+/**
+ * 実音声ファイルを使わず、Web Audio APIでその場に生成する軽量サウンドエンジン。
+ * 森の環境音・天候・火のクラックル音・操作音を全て合成する。
+ * ブラウザの自動再生制限があるため、最初のユーザー操作まではAudioContextを起動しない。
+ */
+
+type NoiseKind = 'white' | 'brown';
+
+export class AudioEngine {
+  private ctx: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private windGain: GainNode | null = null;
+  private rainGain: GainNode | null = null;
+  private ambientGain: GainNode | null = null;
+  private fireGain: GainNode | null = null;
+  private muted = false;
+  private started = false;
+  private fireLevel = 0;
+  private nextCrackleAt = 0;
+  private nextAmbientChirpAt = 0;
+  private rafId = 0;
+
+  /** ユーザー操作のタイミングで一度だけ呼ぶ（自動再生制限の回避） */
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.ctx = new Ctx();
+      const ctx = this.ctx;
+
+      this.master = ctx.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.7;
+      this.master.connect(ctx.destination);
+
+      this.ambientGain = ctx.createGain();
+      this.ambientGain.gain.value = 0.16;
+      this.ambientGain.connect(this.master);
+      this.playNoiseLoop('brown', 400, this.ambientGain);
+
+      this.windGain = ctx.createGain();
+      this.windGain.gain.value = 0;
+      this.windGain.connect(this.master);
+      this.playNoiseLoop('white', 900, this.windGain, true);
+
+      this.rainGain = ctx.createGain();
+      this.rainGain.gain.value = 0;
+      this.rainGain.connect(this.master);
+      this.playNoiseLoop('white', 2400, this.rainGain);
+
+      this.fireGain = ctx.createGain();
+      this.fireGain.gain.value = 0;
+      this.fireGain.connect(this.master);
+      this.playNoiseLoop('brown', 260, this.fireGain);
+
+      this.nextCrackleAt = ctx.currentTime + 1;
+      this.nextAmbientChirpAt = ctx.currentTime + 2;
+      this.loop();
+    } catch {
+      // Web Audio非対応環境では静かに諦める（ゲーム進行には影響させない）
+      this.ctx = null;
+    }
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    if (this.master && this.ctx) {
+      this.master.gain.setTargetAtTime(muted ? 0 : 0.7, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  isMuted(): boolean {
+    return this.muted;
+  }
+
+  setWind(amp: number): void {
+    if (!this.ctx || !this.windGain) return;
+    this.windGain.gain.setTargetAtTime(Math.min(0.4, amp * 0.22), this.ctx.currentTime, 0.4);
+  }
+
+  setRain(amp: number): void {
+    if (!this.ctx || !this.rainGain) return;
+    this.rainGain.gain.setTargetAtTime(Math.min(0.45, amp * 0.28), this.ctx.currentTime, 0.4);
+  }
+
+  setFireLevel(fire0to100: number): void {
+    this.fireLevel = fire0to100;
+    if (!this.ctx || !this.fireGain) return;
+    const target = fire0to100 <= 0 ? 0 : 0.05 + (fire0to100 / 100) * 0.32;
+    this.fireGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.5);
+  }
+
+  /** 短い操作音。汎用のシンプルなビープ/クリック/ポップ */
+  playBlip(kind: 'pick' | 'snap-dry' | 'snap-wet' | 'spark' | 'ember' | 'whoosh' | 'success' | 'fail'): void {
+    if (!this.ctx || !this.master) return;
+    const ctx = this.ctx;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.master);
+
+    switch (kind) {
+      case 'pick':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520, t0);
+        osc.frequency.exponentialRampToValueAtTime(760, t0 + 0.08);
+        gain.gain.setValueAtTime(0.12, t0);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+        osc.start(t0);
+        osc.stop(t0 + 0.13);
+        break;
+      case 'snap-dry':
+        this.playNoiseBurst(0.05, 3200, 0.28);
+        return;
+      case 'snap-wet':
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, t0);
+        osc.frequency.exponentialRampToValueAtTime(90, t0 + 0.2);
+        gain.gain.setValueAtTime(0.14, t0);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.24);
+        osc.start(t0);
+        osc.stop(t0 + 0.25);
+        break;
+      case 'spark':
+        this.playNoiseBurst(0.03, 4200, 0.18);
+        return;
+      case 'ember':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, t0);
+        osc.frequency.exponentialRampToValueAtTime(500, t0 + 0.3);
+        gain.gain.setValueAtTime(0.001, t0);
+        gain.gain.linearRampToValueAtTime(0.2, t0 + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+        osc.start(t0);
+        osc.stop(t0 + 0.5);
+        break;
+      case 'whoosh':
+        this.playNoiseBurst(0.35, 1400, 0.3);
+        return;
+      case 'success': {
+        [0, 0.12, 0.26].forEach((delay, i) => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = 260 + i * 120;
+          g.gain.setValueAtTime(0.0001, t0 + delay);
+          g.gain.linearRampToValueAtTime(0.16, t0 + delay + 0.05);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.4);
+          o.connect(g);
+          g.connect(this.master!);
+          o.start(t0 + delay);
+          o.stop(t0 + delay + 0.45);
+        });
+        return;
+      }
+      case 'fail':
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, t0);
+        osc.frequency.exponentialRampToValueAtTime(60, t0 + 0.9);
+        gain.gain.setValueAtTime(0.12, t0);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + 1.0);
+        osc.start(t0);
+        osc.stop(t0 + 1.0);
+        break;
+    }
+  }
+
+  private playNoiseBurst(durationSec: number, lowpassHz: number, volume: number): void {
+    if (!this.ctx || !this.master) return;
+    const ctx = this.ctx;
+    const buffer = this.makeNoiseBuffer('white', durationSec);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = lowpassHz;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.master);
+    src.start();
+  }
+
+  private makeNoiseBuffer(kind: NoiseKind, seconds: number): AudioBuffer {
+    const ctx = this.ctx!;
+    const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < length; i++) {
+      const white = Math.random() * 2 - 1;
+      if (kind === 'brown') {
+        last = (last + 0.02 * white) / 1.02;
+        data[i] = last * 3.2;
+      } else {
+        data[i] = white;
+      }
+    }
+    return buffer;
+  }
+
+  private playNoiseLoop(kind: NoiseKind, lowpassHz: number, output: GainNode, bandpass = false): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const buffer = this.makeNoiseBuffer(kind, 4);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = bandpass ? 'bandpass' : 'lowpass';
+    filter.frequency.value = lowpassHz;
+    src.connect(filter);
+    filter.connect(output);
+    src.start();
+  }
+
+  private loop(): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    if (now >= this.nextCrackleAt) {
+      const rate = this.fireLevel <= 0 ? 999 : 0.5 - Math.min(0.42, (this.fireLevel / 100) * 0.42);
+      this.nextCrackleAt = now + 0.15 + rate + Math.random() * rate;
+      if (this.fireLevel > 4) {
+        this.playNoiseBurst(0.04 + Math.random() * 0.05, 3000 + Math.random() * 2000, 0.05 + (this.fireLevel / 100) * 0.12);
+      }
+    }
+    if (now >= this.nextAmbientChirpAt) {
+      this.nextAmbientChirpAt = now + 3 + Math.random() * 6;
+      this.playChirp();
+    }
+    this.rafId = requestAnimationFrame(() => this.loop());
+  }
+
+  private playChirp(): void {
+    if (!this.ctx || !this.ambientGain) return;
+    const ctx = this.ctx;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    const base = 1800 + Math.random() * 1400;
+    osc.frequency.setValueAtTime(base, t0);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.3, t0 + 0.05);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.linearRampToValueAtTime(0.04, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
+    osc.connect(gain);
+    gain.connect(this.ambientGain);
+    osc.start(t0);
+    osc.stop(t0 + 0.16);
+  }
+
+  destroy(): void {
+    cancelAnimationFrame(this.rafId);
+    this.ctx?.close().catch(() => {});
+  }
+}
+
+export const audioEngine = new AudioEngine();
