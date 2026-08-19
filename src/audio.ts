@@ -82,7 +82,7 @@ export class AudioEngine {
       this.fatigueGain.connect(this.master);
       this.playNoiseLoop('white', 700, this.fatigueGain, true);
 
-      this.nextCrackleAt = ctx.currentTime + 1;
+      this.nextCrackleAt = ctx.currentTime;
       this.nextAmbientChirpAt = ctx.currentTime + 2;
       this.loop();
     } catch {
@@ -136,6 +136,7 @@ export class AudioEngine {
     this.rainGain?.gain.setTargetAtTime(0, t, 0.15);
     this.fatigueGain?.gain.setTargetAtTime(0, t, 0.15);
     this.fireLevel = 0;
+    this.nextCrackleAt = t;
   }
 
   /** 短い操作音。汎用のシンプルなビープ/クリック/ポップ */
@@ -279,10 +280,17 @@ export class AudioEngine {
   private loop(): void {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    if (now >= this.nextCrackleAt) {
-      const rate = this.fireLevel <= 0 ? 999 : 0.5 - Math.min(0.42, (this.fireLevel / 100) * 0.42);
-      this.nextCrackleAt = now + 0.12 + rate + Math.random() * rate;
-      if (this.fireLevel > 4) this.playCrackle();
+    if (this.fireLevel > 4) {
+      if (now >= this.nextCrackleAt) {
+        const rate = 0.5 - Math.min(0.42, (this.fireLevel / 100) * 0.42);
+        this.nextCrackleAt = now + 0.12 + rate + Math.random() * rate;
+        this.playCrackle();
+      }
+    } else {
+      // 火がまだ無い間は「次は今すぐ」のままにしておき、火がついた瞬間に
+      // すぐクラックルが鳴り始められるようにする（過去のバグ：ここで数百秒先を
+      // 指してしまい、以後セッション中ずっとクラックルが鳴らなくなっていた）
+      this.nextCrackleAt = now;
     }
     if (now >= this.nextAmbientChirpAt) {
       this.nextAmbientChirpAt = now + 3 + Math.random() * 6;
