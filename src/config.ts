@@ -285,7 +285,7 @@ export const GAME_CONFIG = {
   ],
 
   share: {
-    url: 'https://survival-seven-olive.vercel.app/',
+    url: 'https://survival-night.vercel.app/',
     hashtags: ['SURVIVETHENIGHT', '火おこしチャレンジ', 'サバイバル力'],
   },
 

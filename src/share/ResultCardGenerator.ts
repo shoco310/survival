@@ -1,7 +1,6 @@
 import { formatTime } from '../scoring';
 import { WEATHER_META } from '../weather';
 import { EQUIPMENT_META } from '../equipment';
-import { GAME_CONFIG } from '../config';
 import type { EquipmentId, WeatherId } from '../types';
 
 export interface ResultCardScoreRow {
@@ -225,11 +224,8 @@ export async function generateResultCard(params: ResultCardParams): Promise<Blob
   drawMultilineText(ctx, params.comment, left, 442, 25);
 
   ctx.fillStyle = '#8f89a0';
-  ctx.font = `600 17px ${fontFamily}`;
-  ctx.fillText('あなたは火を起こせるか？', left, 566);
-  ctx.fillStyle = '#ffb347';
-  ctx.font = `700 19px ${fontFamily}`;
-  ctx.fillText(GAME_CONFIG.share.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), left, 596);
+  ctx.font = `600 18px ${fontFamily}`;
+  ctx.fillText('あなたは火を起こせるか？', left, 582);
 
   return canvasToBlob(canvas);
 }
