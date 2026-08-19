@@ -602,7 +602,15 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
-  padding: 6px 0;
+  align-items: center;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(146px + env(safe-area-inset-bottom));
+  z-index: 6;
+  padding: 6px 18px;
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 .kindling-chip {
@@ -642,7 +650,14 @@ body {
 .field-controls {
   display: flex;
   justify-content: center;
-  padding: 4px 0 58px;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(58px + env(safe-area-inset-bottom));
+  z-index: 6;
+  padding: 0 18px;
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 .blow-btn {
