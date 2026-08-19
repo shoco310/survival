@@ -6,6 +6,13 @@
 
 type NoiseKind = 'white' | 'brown';
 
+// 無音のWAV（0.1秒・8kHz・8bit）。iOS Safariは本体側面のサイレントスイッチがオンだと
+// Web Audio単体では音を鳴らせないことがあるが、<audio>要素での再生はスイッチの
+// 影響を受けにくいため、これをループ再生してページの「オーディオ再生中」扱いを
+// 保つことで、同時に鳴らすWeb Audio側の音もミュートされにくくする定番の回避策。
+const SILENT_AUDIO_SRC =
+  'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -20,6 +27,7 @@ export class AudioEngine {
   private nextCrackleAt = 0;
   private nextAmbientChirpAt = 0;
   private rafId = 0;
+  private silentUnlockEl: HTMLAudioElement | null = null;
 
   /** ユーザー操作のタイミングで一度だけ呼ぶ（自動再生制限の回避） */
   start(): void {
@@ -37,6 +45,12 @@ export class AudioEngine {
       };
       document.addEventListener('pointerdown', resumeIfNeeded);
       document.addEventListener('visibilitychange', resumeIfNeeded);
+
+      const unlockEl = new Audio(SILENT_AUDIO_SRC);
+      unlockEl.loop = true;
+      unlockEl.volume = 0.01;
+      unlockEl.play().catch(() => {});
+      this.silentUnlockEl = unlockEl;
 
       this.master = ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 0.7;
@@ -107,8 +121,21 @@ export class AudioEngine {
   setFireLevel(fire0to100: number): void {
     this.fireLevel = fire0to100;
     if (!this.ctx || !this.fireGain) return;
-    const target = fire0to100 <= 0 ? 0 : 0.05 + (fire0to100 / 100) * 0.32;
+    // 「ぼー」という持続音にならないよう、下敷きのノイズはごく小さな熾火の気配程度に留め、
+    // 炎らしさは主にloop()側のパチパチ（クラックル）音で表現する
+    const target = fire0to100 <= 0 ? 0 : 0.015 + (fire0to100 / 100) * 0.05;
     this.fireGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.5);
+  }
+
+  /** タイトルへ戻る際に呼ぶ。前のプレイで残った炎・疲労・風雨の音を止める */
+  resetAmbient(): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.fireGain?.gain.setTargetAtTime(0, t, 0.15);
+    this.windGain?.gain.setTargetAtTime(0, t, 0.15);
+    this.rainGain?.gain.setTargetAtTime(0, t, 0.15);
+    this.fatigueGain?.gain.setTargetAtTime(0, t, 0.15);
+    this.fireLevel = 0;
   }
 
   /** 短い操作音。汎用のシンプルなビープ/クリック/ポップ */
@@ -187,6 +214,17 @@ export class AudioEngine {
     }
   }
 
+  /** 焚き火の「パチッ」という単発クラックル音。まれに2連続の「パチパチッ」も鳴る */
+  private playCrackle(): void {
+    const volume = 0.09 + (this.fireLevel / 100) * 0.2;
+    this.playNoiseBurst(0.03 + Math.random() * 0.04, 2800 + Math.random() * 2600, volume);
+    if (Math.random() < 0.28) {
+      setTimeout(() => {
+        this.playNoiseBurst(0.025 + Math.random() * 0.03, 3200 + Math.random() * 2600, volume * 0.75);
+      }, 35 + Math.random() * 45);
+    }
+  }
+
   private playNoiseBurst(durationSec: number, lowpassHz: number, volume: number): void {
     if (!this.ctx || !this.master) return;
     const ctx = this.ctx;
@@ -243,10 +281,8 @@ export class AudioEngine {
     const now = this.ctx.currentTime;
     if (now >= this.nextCrackleAt) {
       const rate = this.fireLevel <= 0 ? 999 : 0.5 - Math.min(0.42, (this.fireLevel / 100) * 0.42);
-      this.nextCrackleAt = now + 0.15 + rate + Math.random() * rate;
-      if (this.fireLevel > 4) {
-        this.playNoiseBurst(0.04 + Math.random() * 0.05, 3000 + Math.random() * 2000, 0.05 + (this.fireLevel / 100) * 0.12);
-      }
+      this.nextCrackleAt = now + 0.12 + rate + Math.random() * rate;
+      if (this.fireLevel > 4) this.playCrackle();
     }
     if (now >= this.nextAmbientChirpAt) {
       this.nextAmbientChirpAt = now + 3 + Math.random() * 6;
@@ -276,6 +312,7 @@ export class AudioEngine {
 
   destroy(): void {
     cancelAnimationFrame(this.rafId);
+    this.silentUnlockEl?.pause();
     this.ctx?.close().catch(() => {});
   }
 }

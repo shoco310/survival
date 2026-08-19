@@ -5,6 +5,8 @@ import type { ScreenContext, Unmount } from './context';
 export function mountTitle(root: HTMLElement, ctx: ScreenContext): Unmount {
   ctx.setFireVisual({ phase: 'idle', fire: 0, windAmp: 0.2, rainAmp: 0 });
   ctx.setAmbient(0);
+  // もう一度挑戦で戻ってきたとき、前のプレイの炎・疲労・風雨の音が鳴りっぱなしにならないようにする
+  audioEngine.resetAmbient();
 
   root.innerHTML = `
     <div class="screen title-screen">
