@@ -25,6 +25,8 @@ export interface FireVisualState {
   spinSpeed: number;
   /** 回転フェーズでの摩擦熱 0-100（木屑→煙→火種の段階演出に使う） */
   frictionHeat: number;
+  /** 息の強さが最適から外れている度合い 0(ぴったり)〜1(大きく外れ)。炎の揺れ・煙に反映 */
+  breathJitter: number;
 }
 
 const MAX_PARTICLES = 340;
@@ -44,6 +46,7 @@ export class FireCanvas {
     rainAmp: 0,
     spinSpeed: 0,
     frictionHeat: 0,
+    breathJitter: 0,
   };
   private windPhase = 0;
   private spinAngle = 0;
@@ -107,7 +110,7 @@ export class FireCanvas {
 
   private update(dtMs: number): void {
     const dt = dtMs / 1000;
-    const { fire, phase, windAmp, rainAmp, spinSpeed, frictionHeat } = this.state;
+    const { fire, phase, windAmp, rainAmp, spinSpeed, frictionHeat, breathJitter } = this.state;
     this.windPhase += dt;
     const windDrift = Math.sin(this.windPhase * 1.3) * windAmp * 40;
     this.spinAngle += spinSpeed * dt * 22;
@@ -115,9 +118,11 @@ export class FireCanvas {
     if (this.particles.length < MAX_PARTICLES) {
       if (phase === 'burning') {
         const emitCount = Math.round(1 + (fire / 100) * 6);
-        for (let i = 0; i < emitCount; i++) this.emitFlame(fire, windDrift);
+        for (let i = 0; i < emitCount; i++) this.emitFlame(fire, windDrift, breathJitter);
         if (Math.random() < 0.4 + fire / 200) this.emitSpark(fire, windDrift);
-        if (Math.random() < 0.25) this.emitSmoke(fire, windDrift);
+        // 火が弱っているときほど煙が濃くなり、危機感を視覚的に伝える
+        const struggleSmoke = fire < 35 ? (35 - fire) / 35 : 0;
+        if (Math.random() < 0.25 + struggleSmoke * 0.5) this.emitSmoke(fire, windDrift);
         if (rainAmp > 0.3 && fire > 3 && Math.random() < rainAmp * 0.3) this.emitSizzle(fire);
       } else if (phase === 'ember') {
         if (Math.random() < 0.7) this.emitSmoke(10, windDrift);
@@ -161,13 +166,14 @@ export class FireCanvas {
     this.particles = this.particles.filter((p) => p.life > 0 && p.y > -40 && p.y < this.h + 40);
   }
 
-  private emitFlame(fire: number, windDrift: number): void {
+  private emitFlame(fire: number, windDrift: number, breathJitter = 0): void {
     const spread = 13 + fire * 0.32;
+    const jitterKick = breathJitter * 60;
     this.particles.push({
       x: this.baseX() + (Math.random() - 0.5) * spread,
       y: this.baseY() + Math.random() * 6,
-      vx: windDrift * 0.4 + (Math.random() - 0.5) * 24,
-      vy: -(70 + fire * 1.9 + Math.random() * 46),
+      vx: windDrift * 0.4 + (Math.random() - 0.5) * (24 + jitterKick),
+      vy: -(70 + fire * 1.9 + Math.random() * 46) * (1 - breathJitter * 0.2),
       life: 400 + Math.random() * 280,
       maxLife: 620,
       size: 9 + Math.random() * (8 + fire * 0.16),

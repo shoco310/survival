@@ -369,6 +369,10 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
   let holding = false;
   let firstFlameShown = false;
   let campfireShown = false;
+  let peakFireSeen = 0;
+  let distressShown = false;
+  let overblowHoldSeconds = 0;
+  let overblowWarnShown = false;
 
   function enterBreath(): void {
     phase = 'breath';
@@ -466,11 +470,13 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
       ctx.fireCanvas.pulseKindling(true);
       audioEngine.playBlip('whoosh');
       if (navigator.vibrate) navigator.vibrate(25);
-      showBanner('ボワッ！炎が育った', 1000);
+      const text = material.role === 'kindling' ? '細い枝をくべた！炎が少し育った' : '太い枝をくべた！炎が大きく育った';
+      showBanner(text, 1100);
     } else {
       fire = clamp(fire - cfg.badPenalty, 0, 100);
       ctx.fireCanvas.pulseKindling(false);
-      showBanner('もくもく…煙が増えた', 1000);
+      const text = material.role === 'fuel' ? '太すぎた…もくもくと煙が増えた' : 'まだ早い…もくもくと煙が増えた';
+      showBanner(text, 1100);
     }
     state.kindlingLog.push({ id: material.id, goodTiming });
     state.fire = fire;
@@ -592,9 +598,21 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
 
     const distance = Math.abs(oxygen - B.optimalOxygen) / B.bellWidth;
     const efficiency = clamp(1 - distance, B.minGrowthMultiplier, 1);
+    const breathJitter = clamp(distance, 0, 1);
 
     state.breathMetrics.totalTicks += dt;
     state.breathMetrics.safeZoneTicks += efficiency * dt;
+
+    if (oxygen > B.optimalOxygen + B.bellWidth * 0.55) {
+      overblowHoldSeconds += dt;
+      if (!overblowWarnShown && overblowHoldSeconds > 1.4) {
+        overblowWarnShown = true;
+        showBanner('吹きすぎ！少し弱めよう', 1100);
+      }
+    } else {
+      overblowHoldSeconds = 0;
+      overblowWarnShown = false;
+    }
 
     const agg = aggregateByRole(state.collectedMaterials, state.wetness);
     if (oxygen >= B.neglectOxygenThreshold) {
@@ -639,6 +657,12 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
       campfireShown = true;
       showBanner('炎が大きく育ってきた…！', 1400);
     }
+    peakFireSeen = Math.max(peakFireSeen, fire);
+    if (!distressShown && peakFireSeen >= 25 && fire < peakFireSeen - 15 && fire < 20) {
+      distressShown = true;
+      showBanner('火が弱くなってきた…！', 1300);
+      if (navigator.vibrate) navigator.vibrate(15);
+    }
     if (fire >= GAME_CONFIG.kindling.unlocksAtFire) {
       kindlingTray.style.display = state.collectedMaterials.some((m) => m.role !== 'tinder') ? '' : 'none';
     }
@@ -646,7 +670,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     state.fire = fire;
     state.oxygen = oxygen;
 
-    ctx.setFireVisual({ phase: fire >= 8 ? 'burning' : 'ember', fire });
+    ctx.setFireVisual({ phase: fire >= 8 ? 'burning' : 'ember', fire, breathJitter });
     ctx.setAmbient(fire);
     audioEngine.setFireLevel(fire);
     void t;
