@@ -28,6 +28,14 @@ export class AudioEngine {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctx();
       const ctx = this.ctx;
+      // iOS Safari等はユーザー操作内で生成してもsuspended状態のままのことがあるため明示的にresumeする。
+      // さらに画面ロックや着信で再度suspendされることがあるので、以後の操作でも都度resumeを試みる。
+      void ctx.resume();
+      const resumeIfNeeded = () => {
+        if (ctx.state === 'suspended') void ctx.resume();
+      };
+      document.addEventListener('pointerdown', resumeIfNeeded);
+      document.addEventListener('visibilitychange', resumeIfNeeded);
 
       this.master = ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 0.7;
