@@ -168,7 +168,8 @@ export class FireCanvas {
   }
 
   private emitFlame(fire: number, windDrift: number, breathJitter = 0): void {
-    const spread = 16 + fire * 0.42;
+    const scale = this.visualScale();
+    const spread = (16 + fire * 0.42) * scale;
     const jitterKick = breathJitter * 60;
     this.particles.push({
       x: this.baseX() + (Math.random() - 0.5) * spread,
@@ -177,7 +178,7 @@ export class FireCanvas {
       vy: -(78 + fire * 2.3 + Math.random() * 50) * (1 - breathJitter * 0.2),
       life: 420 + Math.random() * 300,
       maxLife: 660,
-      size: 13 + Math.random() * (11 + fire * 0.26),
+      size: (13 + Math.random() * (11 + fire * 0.26)) * scale,
       kind: 'flame',
       hue: 18 + Math.random() * 40,
       rotation: 0,
@@ -186,14 +187,15 @@ export class FireCanvas {
   }
 
   private emitSpark(fire: number, windDrift: number): void {
+    const scale = this.visualScale();
     this.particles.push({
-      x: this.baseX() + (Math.random() - 0.5) * (32 + fire * 0.46),
-      y: this.baseY() - fire * 0.95,
+      x: this.baseX() + (Math.random() - 0.5) * (32 + fire * 0.46) * scale,
+      y: this.baseY() - fire * 0.95 * scale,
       vx: windDrift + (Math.random() - 0.5) * 70,
       vy: -(140 + Math.random() * 160),
       life: 520 + Math.random() * 420,
       maxLife: 940,
-      size: 2 + Math.random() * 2.2,
+      size: (2 + Math.random() * 2.2) * scale,
       kind: 'spark',
       hue: 40 + Math.random() * 20,
       rotation: 0,
@@ -202,14 +204,15 @@ export class FireCanvas {
   }
 
   private emitSmoke(fire: number, windDrift: number): void {
+    const scale = this.visualScale();
     this.particles.push({
       x: this.baseX() + (Math.random() - 0.5) * 30,
-      y: this.baseY() - fire * 0.95 - Math.random() * 12,
+      y: this.baseY() - fire * 0.95 * scale - Math.random() * 12,
       vx: windDrift * 0.8 + (Math.random() - 0.5) * 16,
       vy: -(34 + Math.random() * 34),
       life: 1400 + Math.random() * 900,
       maxLife: 2300,
-      size: 13 + Math.random() * 20,
+      size: (13 + Math.random() * 20) * scale,
       kind: 'smoke',
       hue: 0,
       rotation: 0,
@@ -283,16 +286,20 @@ export class FireCanvas {
     });
   }
 
-  /** 摩擦フェーズの木の棒・火起こし台のスケール。画面の主役になるよう画面サイズに応じて拡大する */
-  private rigScale(): number {
-    return clamp(Math.min(this.w, this.h) / 640, 0.9, 1.85);
+  /**
+   * 木の棒・火起こし台・炎の大きさの基準スケール。画面の主役として大きく見せたいが、
+   * 下限0.9は幅の狭いスマホ実機（幅390px前後）では素直な比率(≈0.6)より常に大きく
+   * 張り出してしまい「棒と炎が大きすぎる」原因になっていたため、下限を大きく緩めた。
+   */
+  private visualScale(): number {
+    return clamp(Math.min(this.w, this.h) / 640, 0.52, 1.7);
   }
 
   private renderRotateRig(): void {
     const ctx = this.ctx;
     const bx = this.baseX();
     const by = this.baseY();
-    const scale = this.rigScale();
+    const scale = this.visualScale();
     const heat = this.state.frictionHeat;
 
     // ground board
@@ -373,7 +380,7 @@ export class FireCanvas {
 
     // ember glow at base — 火が育つほど周囲を大きく暖色に照らす（炎の成長を光でも伝える）
     if (this.state.phase !== 'idle' && this.state.phase !== 'rotate' && this.state.fire >= 0) {
-      const glowSize = 42 + this.state.fire * 2.3;
+      const glowSize = (42 + this.state.fire * 2.3) * this.visualScale();
       const grad = ctx.createRadialGradient(
         this.baseX(),
         this.baseY(),
@@ -392,7 +399,7 @@ export class FireCanvas {
       ctx.fill();
     } else if (this.state.phase === 'rotate' && this.state.frictionHeat > 40) {
       // a faint red glow that gradually builds at the rod's base as friction heat climbs
-      const glowSize = (10 + (this.state.frictionHeat - 40) * 0.7) * this.rigScale();
+      const glowSize = (10 + (this.state.frictionHeat - 40) * 0.7) * this.visualScale();
       const grad = ctx.createRadialGradient(this.baseX(), this.baseY() - 4, 0, this.baseX(), this.baseY() - 4, glowSize);
       grad.addColorStop(0, `rgba(255,90,40,${(this.state.frictionHeat - 40) / 90})`);
       grad.addColorStop(1, 'rgba(255,80,20,0)');
