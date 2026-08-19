@@ -35,6 +35,23 @@ const centerToast = app.querySelector<HTMLDivElement>('#center-toast')!;
 const treeEls = Array.from(app.querySelectorAll<HTMLDivElement>('.tree'));
 const screenRoot = app.querySelector<HTMLDivElement>('#screen-root')!;
 
+// iOS Safariはアドレスバー/タブバーが展開されている間、position:fixedの要素を
+// 実際に見えている領域ではなくページ全体の高さ基準で配置してしまい、下部固定の
+// UIがツールバーの裏に隠れることがある。visualViewportの実測値からズレ分を
+// CSS変数に反映し、固定要素側でその分だけ底上げする。
+function setupViewportOffset(): void {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const update = () => {
+    const offset = window.innerHeight - vv.height - vv.offsetTop;
+    document.documentElement.style.setProperty('--vv-bottom-offset', `${Math.max(0, offset)}px`);
+  };
+  vv.addEventListener('resize', update);
+  vv.addEventListener('scroll', update);
+  update();
+}
+setupViewportOffset();
+
 const fireCanvas = new FireCanvas(canvasEl);
 fireCanvas.start();
 

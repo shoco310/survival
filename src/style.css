@@ -12,6 +12,7 @@
   --danger: #ff5470;
   --safe: #7ce0a0;
   --radius: 18px;
+  --vv-bottom-offset: 0px;
   color-scheme: dark;
 }
 
@@ -606,7 +607,7 @@ body {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(146px + env(safe-area-inset-bottom));
+  bottom: calc(146px + env(safe-area-inset-bottom) + var(--vv-bottom-offset));
   z-index: 6;
   padding: 6px 18px;
   max-width: 520px;
@@ -653,7 +654,7 @@ body {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(58px + env(safe-area-inset-bottom));
+  bottom: calc(58px + env(safe-area-inset-bottom) + var(--vv-bottom-offset));
   z-index: 6;
   padding: 0 18px;
   max-width: 520px;
