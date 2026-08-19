@@ -13,7 +13,7 @@ export function mountTitle(root: HTMLElement, ctx: ScreenContext): Unmount {
         <h1 class="title-hero-h1">SURVIVE<br/>THE NIGHT</h1>
         <p class="title-hero-sub">火を起こせ。夜を生き延びろ。</p>
       </div>
-      <button class="survive-btn" id="survive-btn">SURVIVE</button>
+      <button class="survive-btn" id="survive-btn">生き延びる</button>
       <div class="title-foot">🔇 タップして音を有効化</div>
     </div>
   `;

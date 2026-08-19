@@ -288,7 +288,7 @@ body {
 }
 
 .material-item .emoji {
-  font-size: 32px;
+  font-size: 38px;
   line-height: 1;
   display: block;
 }
@@ -460,7 +460,7 @@ body {
 .stage-material {
   position: fixed;
   transform: translate(-50%, -50%);
-  font-size: 22px;
+  font-size: 30px;
   filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
 }
 

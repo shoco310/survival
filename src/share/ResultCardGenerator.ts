@@ -184,7 +184,7 @@ export async function generateResultCard(params: ResultCardParams): Promise<Blob
 
   ctx.fillStyle = '#d8d2e0';
   ctx.font = `700 20px ${fontFamily}`;
-  ctx.fillText('SURVIVAL SCORE', left, 108);
+  ctx.fillText('サバイバルスコア', left, 108);
 
   ctx.fillStyle = '#fff6e9';
   ctx.font = `800 168px ${fontFamily}`;
@@ -200,7 +200,7 @@ export async function generateResultCard(params: ResultCardParams): Promise<Blob
 
   ctx.fillStyle = '#a89fb8';
   ctx.font = `700 18px ${fontFamily}`;
-  ctx.fillText('FIRE TIME', left, 358);
+  ctx.fillText('着火タイム', left, 358);
   ctx.fillStyle = '#ffffff';
   ctx.font = `800 52px ${fontFamily}`;
   ctx.fillText(formatTime(params.fireTimeMs), left, 404);
@@ -213,7 +213,7 @@ export async function generateResultCard(params: ResultCardParams): Promise<Blob
   const equipmentMeta = EQUIPMENT_META[params.equipment];
   ctx.fillStyle = '#b9b3c9';
   ctx.font = `600 20px ${fontFamily}`;
-  ctx.fillText(`${weatherMeta.emoji} WEATHER：${weatherMeta.label}　${equipmentMeta.emoji} ITEM：${equipmentMeta.label}`, left, 522);
+  ctx.fillText(`${weatherMeta.emoji} 天候：${weatherMeta.label}　${equipmentMeta.emoji} 装備：${equipmentMeta.label}`, left, 522);
 
   ctx.fillStyle = '#8f89a0';
   ctx.font = `600 18px ${fontFamily}`;

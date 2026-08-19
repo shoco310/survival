@@ -76,3 +76,8 @@ export function formatClock(totalSeconds: number): string {
   const rem = s % 60;
   return `${m}:${rem.toString().padStart(2, '0')}`;
 }
+
+/** ランクの内部識別子（英語タイトル）から、表示用の日本語ラベルを引く */
+export function rankLabelJa(title: string): string {
+  return GAME_CONFIG.ranks.find((r) => r.title === title)?.jp ?? title;
+}

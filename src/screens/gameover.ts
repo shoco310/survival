@@ -3,8 +3,8 @@ import { audioEngine } from '../audio';
 import type { ScreenContext, Unmount } from './context';
 
 const REASON_TEXT: Record<string, string> = {
-  sunset: 'THE NIGHT CAME TOO SOON',
-  exhausted: 'YOUR STRENGTH GAVE OUT',
+  sunset: '日没が来てしまった',
+  exhausted: '力尽きてしまった',
 };
 
 export function mountGameOver(root: HTMLElement, ctx: ScreenContext): Unmount {
@@ -18,10 +18,10 @@ export function mountGameOver(root: HTMLElement, ctx: ScreenContext): Unmount {
   root.innerHTML = `
     <div class="screen gameover-screen">
       <div class="gameover-content">
-        <div class="gameover-title">YOU DIDN'T SURVIVE</div>
+        <div class="gameover-title">生き延びられなかった</div>
         <div class="gameover-reason">${reason}</div>
         <p class="gameover-sub">火は、起こせなかった。</p>
-        <button class="btn btn-primary" id="retry-btn">TRY AGAIN</button>
+        <button class="btn btn-primary" id="retry-btn">🔥 もう一度挑戦</button>
       </div>
     </div>
   `;

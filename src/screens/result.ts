@@ -1,6 +1,6 @@
 import { store } from '../state';
 import { GAME_CONFIG } from '../config';
-import { computeScore, formatTime } from '../scoring';
+import { computeScore, formatTime, rankLabelJa } from '../scoring';
 import { WEATHER_META } from '../weather';
 import { EQUIPMENT_META } from '../equipment';
 import { getRankPreset } from '../share/rankPresets';
@@ -16,6 +16,7 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   const score = computeScore(state);
   const elapsedMs = state.startTime != null && state.finishTime != null ? state.finishTime - state.startTime : 0;
   const preset = getRankPreset(score.rank);
+  const rankJa = rankLabelJa(score.rank);
 
   ctx.setFireVisual({ phase: 'burning', fire: 100 });
   ctx.setAmbient(100);
@@ -35,31 +36,31 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
     <div class="screen result-screen">
       <div id="success-flash" class="success-flash">
         <div class="fire-emoji">🔥</div>
-        <h2>YOU SURVIVED</h2>
+        <h2>生き延びた！</h2>
         <p>火を、起こした。</p>
       </div>
       <div id="result-body" class="result-cinematic" style="opacity:0;">
-        <div class="result-character"><img src="${preset.characterImage}" alt="${score.rank}" /></div>
+        <div class="result-character"><img src="${preset.characterImage}" alt="${rankJa}" /></div>
 
         <div class="result-headline">
-          <div class="result-you-survived">YOU SURVIVED</div>
-          <div class="result-rank">${score.rank}</div>
-          ${isNewRecord ? '<div class="new-record">NEW RECORD</div>' : ''}
+          <div class="result-you-survived">生き延びた！</div>
+          <div class="result-rank">${rankJa}</div>
+          ${isNewRecord ? '<div class="new-record">自己ベスト更新！</div>' : ''}
         </div>
 
         <div class="result-stats-row">
-          <div class="result-stat"><span class="k">SCORE</span><span class="v">${score.total}</span></div>
-          <div class="result-stat"><span class="k">TIME</span><span class="v">${formatTime(elapsedMs)}</span></div>
+          <div class="result-stat"><span class="k">スコア</span><span class="v">${score.total}</span></div>
+          <div class="result-stat"><span class="k">タイム</span><span class="v">${formatTime(elapsedMs)}</span></div>
         </div>
-        <div class="best-line">BEST SCORE ${shownBestScore} ・ BEST TIME ${Number.isFinite(shownBestTimeMs) ? formatTime(shownBestTimeMs) : '--:--.--'}</div>
+        <div class="best-line">自己ベスト スコア${shownBestScore} ・ タイム${Number.isFinite(shownBestTimeMs) ? formatTime(shownBestTimeMs) : '--:--.--'}</div>
 
         <div class="score-panel">
-          ${scoreRow('FIREMAKING', score.firemaking, GAME_CONFIG.score.weights.firemaking)}
-          ${scoreRow('MATERIAL CHOICE', score.materialChoice, GAME_CONFIG.score.weights.materialChoice)}
-          ${scoreRow('BREATH CONTROL', score.breathControl, GAME_CONFIG.score.weights.breathControl)}
-          ${scoreRow('FIRE MANAGEMENT', score.fireManagement, GAME_CONFIG.score.weights.fireManagement)}
-          ${scoreRow('SURVIVAL IQ', score.survivalIQ, GAME_CONFIG.score.weights.survivalIQ)}
-          ${scoreRow('TIME', score.time, GAME_CONFIG.score.weights.time)}
+          ${scoreRow('火起こし', score.firemaking, GAME_CONFIG.score.weights.firemaking)}
+          ${scoreRow('素材選び', score.materialChoice, GAME_CONFIG.score.weights.materialChoice)}
+          ${scoreRow('息のコントロール', score.breathControl, GAME_CONFIG.score.weights.breathControl)}
+          ${scoreRow('火の育て方', score.fireManagement, GAME_CONFIG.score.weights.fireManagement)}
+          ${scoreRow('サバイバル力', score.survivalIQ, GAME_CONFIG.score.weights.survivalIQ)}
+          ${scoreRow('時間', score.time, GAME_CONFIG.score.weights.time)}
         </div>
 
         <div class="flavor-text">${preset.comment.replace(/\n/g, '<br/>')}</div>
@@ -83,7 +84,7 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
           <button class="btn btn-primary" id="share-btn">📤 結果をシェア</button>
           <button class="btn btn-secondary" id="save-btn">🖼️ 結果画像を保存</button>
           <button class="btn btn-twitter" id="twitter-btn">𝕏 Xでシェア</button>
-          <button class="btn btn-secondary" id="retry-btn">🔥 TRY AGAIN</button>
+          <button class="btn btn-secondary" id="retry-btn">🔥 もう一度挑戦</button>
         </div>
       </div>
     </div>
@@ -111,7 +112,7 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
   generateResultCard({
     fireTimeMs: elapsedMs,
     score: score.total,
-    rank: score.rank,
+    rank: rankJa,
     characterImage: preset.characterImage,
     weather: state.weather,
     equipment: state.equipment ?? 'food',

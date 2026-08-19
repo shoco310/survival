@@ -1,5 +1,5 @@
 import { store } from '../state';
-import { clamp } from '../ui';
+import { clamp, FIRE_STAGE_Y_RATIO } from '../ui';
 import { GAME_CONFIG } from '../config';
 import { audioEngine } from '../audio';
 import { formatClock } from '../scoring';
@@ -37,7 +37,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     <div class="screen field-screen">
       <div class="field-hud">
         <span class="field-clock" id="field-clock">--:--</span>
-        <span class="field-sunset" id="field-sunset">SUNSET --:--</span>
+        <span class="field-sunset" id="field-sunset">日没まで --:--</span>
         <button class="mute-btn" id="mute-btn">🔊</button>
       </div>
       <div class="field-stamina-track" id="stamina-track" style="display:none;">
@@ -56,7 +56,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
       <div class="kindling-tray" id="kindling-tray" style="display:none;"></div>
 
       <div class="field-controls">
-        <button class="blow-btn" id="blow-btn" style="display:none;">🌬️ HOLD TO BLOW</button>
+        <button class="blow-btn" id="blow-btn" style="display:none;">🌬️ 長押しして息を吹く</button>
       </div>
     </div>
   `;
@@ -84,7 +84,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
   muteBtn.addEventListener('click', onMute);
 
   function center(): { x: number; y: number } {
-    return { x: window.innerWidth / 2, y: window.innerHeight * 0.86 };
+    return { x: window.innerWidth / 2, y: window.innerHeight * FIRE_STAGE_Y_RATIO };
   }
 
   function showBanner(text: string, durationMs?: number, revertTo?: string): void {
@@ -114,13 +114,13 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
   // ================= INTRO SEQUENCE =================
   function playIntro(onDone: () => void): void {
     const beats: [string, number][] = [
-      ['DAY 1', 700],
+      ['1日目', 700],
       [
         `${String(GAME_CONFIG.sunset.startClockHour).padStart(2, '0')}:${String(GAME_CONFIG.sunset.startClockMinute).padStart(2, '0')}`,
         700,
       ],
-      [`SUNSET IN ${formatClock(GAME_CONFIG.sunset.budgetSeconds)}`, 1100],
-      ['MAKE FIRE BEFORE SUNSET', 1300],
+      [`日没まで ${formatClock(GAME_CONFIG.sunset.budgetSeconds)}`, 1100],
+      ['日没までに火を起こせ', 1300],
     ];
     let i = 0;
     const next = () => {
@@ -157,7 +157,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
         </button>`,
       )
       .join('');
-    showTutorial('TAP TO CHOOSE YOUR ITEM');
+    showTutorial('タップして持ち物を選ぼう');
 
     const onPick = (e: Event) => {
       const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.ground-item');
@@ -189,7 +189,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     const collected: Material[] = [];
 
     showBanner('燃えそうな素材を集めよう');
-    showTutorial('DRAG TO COLLECT');
+    showTutorial('タップして集めよう');
     pickProgress.style.display = '';
     pickTargetEl.textContent = String(target);
     pickCountEl.textContent = '0';
@@ -263,9 +263,9 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
   function renderStageScenery(): void {
     const c = center();
     const zones: Record<MaterialRole, { rMin: number; rMax: number }> = {
-      tinder: { rMin: 26, rMax: 58 },
-      kindling: { rMin: 64, rMax: 104 },
-      fuel: { rMin: 110, rMax: 150 },
+      tinder: { rMin: 30, rMax: 58 },
+      kindling: { rMin: 62, rMax: 92 },
+      fuel: { rMin: 96, rMax: 128 },
     };
     stageMaterials.innerHTML = state.collectedMaterials
       .map((m, i) => {
@@ -354,12 +354,12 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     ctx.setFireVisual({ phase: 'rotate', fire: 0, spinSpeed: 0, frictionHeat: heat });
     ctx.setAmbient(0);
     if (afterReset) {
-      showBanner('EMBER LOST — もう一度回そう', 1800, '木の周りを指でぐるぐる回そう');
+      showBanner('火種が消えた…もう一度回そう', 1800, '木の周りを指でぐるぐる回そう');
       audioEngine.playBlip('fail');
     } else {
       state.rotateMetrics.startedAt = Date.now();
       showBanner('木の周りを指（PCはマウス）でぐるぐる回そう');
-      showTutorial('ROTATE TO CREATE FRICTION');
+      showTutorial('指でぐるぐる回して摩擦を起こそう');
     }
   }
 
@@ -377,8 +377,8 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     staminaTrack.style.display = 'none';
     firstFlameShown = fire >= 8;
     campfireShown = fire >= 90;
-    showBanner('🔥 EMBER CREATED', 1600, '長押しで息を吹きかけよう');
-    showTutorial('HOLD TO BLOW');
+    showBanner('🔥 火種ができた！', 1600, '長押しで息を吹きかけよう');
+    showTutorial('長押しして息を吹こう');
     audioEngine.playBlip('ember');
     if (navigator.vibrate) navigator.vibrate(30);
   }
@@ -526,7 +526,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     const hh = Math.floor(clockMinutesTotal / 60) % 24;
     const mm = clockMinutesTotal % 60;
     clockEl.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-    sunsetEl.textContent = `SUNSET ${formatClock(remaining)}`;
+    sunsetEl.textContent = `日没まで ${formatClock(remaining)}`;
     sunsetEl.classList.toggle('warn', remaining <= GAME_CONFIG.sunset.warningSeconds);
   }
 

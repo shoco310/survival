@@ -1,3 +1,5 @@
+import { FIRE_STAGE_Y_RATIO } from './ui';
+
 interface Particle {
   x: number;
   y: number;
@@ -100,7 +102,7 @@ export class FireCanvas {
     return this.w / 2;
   }
   private baseY(): number {
-    return this.h * 0.86;
+    return this.h * FIRE_STAGE_Y_RATIO;
   }
 
   private update(dtMs: number): void {
@@ -160,15 +162,15 @@ export class FireCanvas {
   }
 
   private emitFlame(fire: number, windDrift: number): void {
-    const spread = 10 + fire * 0.25;
+    const spread = 13 + fire * 0.32;
     this.particles.push({
       x: this.baseX() + (Math.random() - 0.5) * spread,
       y: this.baseY() + Math.random() * 6,
-      vx: windDrift * 0.4 + (Math.random() - 0.5) * 20,
-      vy: -(60 + fire * 1.6 + Math.random() * 40),
-      life: 380 + Math.random() * 260,
-      maxLife: 600,
-      size: 6 + Math.random() * (6 + fire * 0.12),
+      vx: windDrift * 0.4 + (Math.random() - 0.5) * 24,
+      vy: -(70 + fire * 1.9 + Math.random() * 46),
+      life: 400 + Math.random() * 280,
+      maxLife: 620,
+      size: 9 + Math.random() * (8 + fire * 0.16),
       kind: 'flame',
       hue: 18 + Math.random() * 40,
       rotation: 0,
@@ -178,13 +180,13 @@ export class FireCanvas {
 
   private emitSpark(fire: number, windDrift: number): void {
     this.particles.push({
-      x: this.baseX() + (Math.random() - 0.5) * (20 + fire * 0.3),
-      y: this.baseY() - fire * 0.6,
-      vx: windDrift + (Math.random() - 0.5) * 60,
-      vy: -(120 + Math.random() * 140),
-      life: 500 + Math.random() * 400,
-      maxLife: 900,
-      size: 1.5 + Math.random() * 1.8,
+      x: this.baseX() + (Math.random() - 0.5) * (26 + fire * 0.36),
+      y: this.baseY() - fire * 0.75,
+      vx: windDrift + (Math.random() - 0.5) * 70,
+      vy: -(140 + Math.random() * 160),
+      life: 520 + Math.random() * 420,
+      maxLife: 940,
+      size: 2 + Math.random() * 2.2,
       kind: 'spark',
       hue: 40 + Math.random() * 20,
       rotation: 0,
@@ -194,13 +196,13 @@ export class FireCanvas {
 
   private emitSmoke(fire: number, windDrift: number): void {
     this.particles.push({
-      x: this.baseX() + (Math.random() - 0.5) * 24,
-      y: this.baseY() - fire * 0.8 - Math.random() * 10,
-      vx: windDrift * 0.8 + (Math.random() - 0.5) * 14,
-      vy: -(30 + Math.random() * 30),
+      x: this.baseX() + (Math.random() - 0.5) * 30,
+      y: this.baseY() - fire * 0.95 - Math.random() * 12,
+      vx: windDrift * 0.8 + (Math.random() - 0.5) * 16,
+      vy: -(34 + Math.random() * 34),
       life: 1400 + Math.random() * 900,
       maxLife: 2300,
-      size: 10 + Math.random() * 16,
+      size: 13 + Math.random() * 20,
       kind: 'smoke',
       hue: 0,
       rotation: 0,
@@ -282,26 +284,26 @@ export class FireCanvas {
     // ground board
     ctx.fillStyle = 'rgba(60,42,26,0.9)';
     ctx.beginPath();
-    ctx.ellipse(bx, by, 70, 16, 0, 0, Math.PI * 2);
+    ctx.ellipse(bx, by, 100, 23, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(40,28,16,0.7)';
     ctx.beginPath();
-    ctx.ellipse(bx, by, 46, 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(bx, by, 66, 13, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // spinning rod (barber-pole stripes suggest rotation around its own axis)
-    const rodW = 13;
-    const rodH = 92;
-    const rodTop = by - rodH - 6;
+    const rodW = 19;
+    const rodH = 134;
+    const rodTop = by - rodH - 8;
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(bx - rodW / 2, rodTop, rodW, rodH, rodW / 2);
     ctx.clip();
     ctx.fillStyle = '#5b3a1e';
     ctx.fillRect(bx - rodW / 2, rodTop, rodW, rodH);
-    const stripeCount = 6;
+    const stripeCount = 8;
     ctx.strokeStyle = 'rgba(255,220,180,0.35)';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     for (let i = -1; i < stripeCount + 1; i++) {
       const phase = ((this.spinAngle + i * 22) % (rodH + 22)) - 11;
       ctx.beginPath();
@@ -332,7 +334,7 @@ export class FireCanvas {
 
     // ember glow at base
     if (this.state.phase !== 'idle' && this.state.phase !== 'rotate' && this.state.fire >= 0) {
-      const glowSize = 16 + this.state.fire * 0.9;
+      const glowSize = 24 + this.state.fire * 1.3;
       const grad = ctx.createRadialGradient(
         this.baseX(),
         this.baseY(),

@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from './config';
-import { formatTime } from './scoring';
+import { formatTime, rankLabelJa } from './scoring';
 import { WEATHER_META } from './weather';
 import type { ScoreBreakdown, WeatherId } from './types';
 
@@ -12,9 +12,9 @@ export function buildShareBody(elapsedMs: number, score: ScoreBreakdown, weather
     `私のサバイバル力は…`,
     ``,
     `🏆 ${score.total} / 100`,
-    `🔥 ${score.rank}`,
-    `⏱ FIRE TIME：${formatTime(elapsedMs)}`,
-    `${w.emoji} WEATHER：${w.label}`,
+    `🔥 ${rankLabelJa(score.rank)}`,
+    `⏱ 着火タイム：${formatTime(elapsedMs)}`,
+    `${w.emoji} 天候：${w.label}`,
     ``,
     `あなたは夜になる前に火を起こせる？`,
     ``,
