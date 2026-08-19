@@ -15,6 +15,14 @@ export const WEATHER_TRANSITION_TOAST: Record<WeatherId, string> = {
   storm: '雨と風が激しくなってきた…',
 };
 
+/** HUDの天候表示用：アイコン＋日本語の説明文（数値ではなく状態として見せる） */
+export const WEATHER_HUD_TEXT: Record<WeatherId, { icon: string; text: string }> = {
+  sunny: { icon: '☁️', text: '穏やか' },
+  wind: { icon: '🌬️', text: '風：強い' },
+  rain: { icon: '🌧️', text: '小雨' },
+  storm: { icon: '⛈️', text: '雨風：強い' },
+};
+
 export function rollWeather(exclude?: WeatherId): WeatherId {
   const probs = GAME_CONFIG.weather.probabilities;
   const keys = (Object.keys(probs) as WeatherId[]).filter((k) => k !== exclude);

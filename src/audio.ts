@@ -13,6 +13,7 @@ export class AudioEngine {
   private rainGain: GainNode | null = null;
   private ambientGain: GainNode | null = null;
   private fireGain: GainNode | null = null;
+  private fatigueGain: GainNode | null = null;
   private muted = false;
   private started = false;
   private fireLevel = 0;
@@ -61,6 +62,12 @@ export class AudioEngine {
       this.fireGain.connect(this.master);
       this.playNoiseLoop('brown', 260, this.fireGain);
 
+      // スタミナが尽きてくると混じる、荒い息づかいのような擦れたノイズ
+      this.fatigueGain = ctx.createGain();
+      this.fatigueGain.gain.value = 0;
+      this.fatigueGain.connect(this.master);
+      this.playNoiseLoop('white', 700, this.fatigueGain, true);
+
       this.nextCrackleAt = ctx.currentTime + 1;
       this.nextAmbientChirpAt = ctx.currentTime + 2;
       this.loop();
@@ -89,6 +96,12 @@ export class AudioEngine {
   setRain(amp: number): void {
     if (!this.ctx || !this.rainGain) return;
     this.rainGain.gain.setTargetAtTime(Math.min(0.45, amp * 0.28), this.ctx.currentTime, 0.4);
+  }
+
+  /** 0(平気)〜1(限界)。スタミナ30%以下でのみ有効な値を渡す想定 */
+  setFatigue(level: number): void {
+    if (!this.ctx || !this.fatigueGain) return;
+    this.fatigueGain.gain.setTargetAtTime(Math.min(0.16, level * 0.16), this.ctx.currentTime, 0.3);
   }
 
   setFireLevel(fire0to100: number): void {

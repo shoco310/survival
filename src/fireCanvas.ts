@@ -1,4 +1,4 @@
-import { FIRE_STAGE_Y_RATIO } from './ui';
+import { FIRE_STAGE_Y_RATIO, clamp } from './ui';
 
 interface Particle {
   x: number;
@@ -117,7 +117,7 @@ export class FireCanvas {
 
     if (this.particles.length < MAX_PARTICLES) {
       if (phase === 'burning') {
-        const emitCount = Math.round(1 + (fire / 100) * 6);
+        const emitCount = Math.round(2 + (fire / 100) * 8);
         for (let i = 0; i < emitCount; i++) this.emitFlame(fire, windDrift, breathJitter);
         if (Math.random() < 0.4 + fire / 200) this.emitSpark(fire, windDrift);
         // 火が弱っているときほど煙が濃くなり、危機感を視覚的に伝える
@@ -127,9 +127,10 @@ export class FireCanvas {
       } else if (phase === 'ember') {
         if (Math.random() < 0.7) this.emitSmoke(10, windDrift);
       } else if (phase === 'rotate') {
-        if (spinSpeed > 0.15 && Math.random() < spinSpeed * 0.6) this.emitDust(spinSpeed);
-        const smokeChance = Math.max(0, (frictionHeat - 35) / 65);
-        if (Math.random() < smokeChance * 0.55) this.emitSmoke(4, windDrift);
+        const dustChance = spinSpeed * 0.55 + Math.max(0, (frictionHeat - 15) / 100) * 0.35;
+        if (spinSpeed > 0.1 && Math.random() < dustChance) this.emitDust(spinSpeed);
+        const smokeChance = Math.max(0, (frictionHeat - 22) / 78);
+        if (Math.random() < smokeChance * 0.6) this.emitSmoke(4, windDrift);
       }
 
       if (rainAmp > 0.05) {
@@ -167,16 +168,16 @@ export class FireCanvas {
   }
 
   private emitFlame(fire: number, windDrift: number, breathJitter = 0): void {
-    const spread = 13 + fire * 0.32;
+    const spread = 16 + fire * 0.42;
     const jitterKick = breathJitter * 60;
     this.particles.push({
       x: this.baseX() + (Math.random() - 0.5) * spread,
       y: this.baseY() + Math.random() * 6,
       vx: windDrift * 0.4 + (Math.random() - 0.5) * (24 + jitterKick),
-      vy: -(70 + fire * 1.9 + Math.random() * 46) * (1 - breathJitter * 0.2),
-      life: 400 + Math.random() * 280,
-      maxLife: 620,
-      size: 9 + Math.random() * (8 + fire * 0.16),
+      vy: -(78 + fire * 2.3 + Math.random() * 50) * (1 - breathJitter * 0.2),
+      life: 420 + Math.random() * 300,
+      maxLife: 660,
+      size: 13 + Math.random() * (11 + fire * 0.26),
       kind: 'flame',
       hue: 18 + Math.random() * 40,
       rotation: 0,
@@ -186,8 +187,8 @@ export class FireCanvas {
 
   private emitSpark(fire: number, windDrift: number): void {
     this.particles.push({
-      x: this.baseX() + (Math.random() - 0.5) * (26 + fire * 0.36),
-      y: this.baseY() - fire * 0.75,
+      x: this.baseX() + (Math.random() - 0.5) * (32 + fire * 0.46),
+      y: this.baseY() - fire * 0.95,
       vx: windDrift + (Math.random() - 0.5) * 70,
       vy: -(140 + Math.random() * 160),
       life: 520 + Math.random() * 420,
@@ -282,40 +283,72 @@ export class FireCanvas {
     });
   }
 
+  /** 摩擦フェーズの木の棒・火起こし台のスケール。画面の主役になるよう画面サイズに応じて拡大する */
+  private rigScale(): number {
+    return clamp(Math.min(this.w, this.h) / 640, 0.9, 1.85);
+  }
+
   private renderRotateRig(): void {
     const ctx = this.ctx;
     const bx = this.baseX();
     const by = this.baseY();
+    const scale = this.rigScale();
+    const heat = this.state.frictionHeat;
 
     // ground board
     ctx.fillStyle = 'rgba(60,42,26,0.9)';
     ctx.beginPath();
-    ctx.ellipse(bx, by, 100, 23, 0, 0, Math.PI * 2);
+    ctx.ellipse(bx, by, 148 * scale, 32 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(40,28,16,0.7)';
     ctx.beginPath();
-    ctx.ellipse(bx, by, 66, 13, 0, 0, Math.PI * 2);
+    ctx.ellipse(bx, by, 98 * scale, 18 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // spinning rod (barber-pole stripes suggest rotation around its own axis)
-    const rodW = 19;
-    const rodH = 134;
-    const rodTop = by - rodH - 8;
+    const rodW = 27 * scale;
+    const rodH = 220 * scale;
+    const rodTop = by - rodH - 10 * scale;
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(bx - rodW / 2, rodTop, rodW, rodH, rodW / 2);
     ctx.clip();
-    ctx.fillStyle = '#5b3a1e';
+    ctx.fillStyle = '#6b4526';
     ctx.fillRect(bx - rodW / 2, rodTop, rodW, rodH);
+
+    // 木目：縦に揺らいだ薄い筋を数本
+    ctx.strokeStyle = 'rgba(40,24,10,0.28)';
+    ctx.lineWidth = 1.4 * scale;
+    for (let g = 0; g < 4; g++) {
+      const gx = bx - rodW / 2 + rodW * (0.18 + g * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(gx, rodTop);
+      for (let y = 0; y <= rodH; y += 18 * scale) {
+        ctx.lineTo(gx + Math.sin(y * 0.05 + g) * 2.2 * scale, rodTop + y);
+      }
+      ctx.stroke();
+    }
+
+    // barber-pole stripes (rotation cue)
     const stripeCount = 8;
-    ctx.strokeStyle = 'rgba(255,220,180,0.35)';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(255,220,180,0.32)';
+    ctx.lineWidth = 6 * scale;
     for (let i = -1; i < stripeCount + 1; i++) {
       const phase = ((this.spinAngle + i * 22) % (rodH + 22)) - 11;
       ctx.beginPath();
       ctx.moveTo(bx - rodW, rodTop + phase);
       ctx.lineTo(bx + rodW, rodTop + phase + 14);
       ctx.stroke();
+    }
+
+    // 摩擦で先端(板に接する側)が黒ずんでいく
+    if (heat > 5) {
+      const scorchH = rodH * (0.14 + Math.min(1, heat / 100) * 0.22);
+      const scorch = ctx.createLinearGradient(0, rodTop + rodH - scorchH, 0, rodTop + rodH);
+      scorch.addColorStop(0, 'rgba(20,10,4,0)');
+      scorch.addColorStop(1, `rgba(15,7,3,${Math.min(0.85, heat / 100 + 0.15)})`);
+      ctx.fillStyle = scorch;
+      ctx.fillRect(bx - rodW / 2, rodTop + rodH - scorchH, rodW, scorchH);
     }
     ctx.restore();
 
@@ -324,7 +357,7 @@ export class FireCanvas {
       ctx.globalAlpha = Math.min(0.4, this.state.spinSpeed * 0.3);
       ctx.fillStyle = '#fff3c4';
       ctx.beginPath();
-      ctx.ellipse(bx, rodTop + 8, rodW * 1.4, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx, rodTop + 8 * scale, rodW * 1.4, 5 * scale, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -338,9 +371,9 @@ export class FireCanvas {
       this.renderRotateRig();
     }
 
-    // ember glow at base
+    // ember glow at base — 火が育つほど周囲を大きく暖色に照らす（炎の成長を光でも伝える）
     if (this.state.phase !== 'idle' && this.state.phase !== 'rotate' && this.state.fire >= 0) {
-      const glowSize = 24 + this.state.fire * 1.3;
+      const glowSize = 42 + this.state.fire * 2.3;
       const grad = ctx.createRadialGradient(
         this.baseX(),
         this.baseY(),
@@ -349,18 +382,19 @@ export class FireCanvas {
         this.baseY(),
         glowSize,
       );
-      const glowAlpha = this.state.phase === 'burning' ? 0.55 : 0.4;
-      grad.addColorStop(0, `rgba(255,140,60,${glowAlpha})`);
+      const glowAlpha = this.state.phase === 'burning' ? 0.6 + Math.min(0.25, this.state.fire / 400) : 0.4;
+      grad.addColorStop(0, `rgba(255,150,70,${glowAlpha})`);
+      grad.addColorStop(0.6, `rgba(255,110,40,${glowAlpha * 0.5})`);
       grad.addColorStop(1, 'rgba(255,80,20,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(this.baseX(), this.baseY(), glowSize, 0, Math.PI * 2);
       ctx.fill();
-    } else if (this.state.phase === 'rotate' && this.state.frictionHeat > 70) {
-      // a faint red glow starting to show at the rod's base just before the ember appears
-      const glowSize = 10 + (this.state.frictionHeat - 70) * 0.6;
+    } else if (this.state.phase === 'rotate' && this.state.frictionHeat > 40) {
+      // a faint red glow that gradually builds at the rod's base as friction heat climbs
+      const glowSize = (10 + (this.state.frictionHeat - 40) * 0.7) * this.rigScale();
       const grad = ctx.createRadialGradient(this.baseX(), this.baseY() - 4, 0, this.baseX(), this.baseY() - 4, glowSize);
-      grad.addColorStop(0, `rgba(255,90,40,${(this.state.frictionHeat - 70) / 60})`);
+      grad.addColorStop(0, `rgba(255,90,40,${(this.state.frictionHeat - 40) / 90})`);
       grad.addColorStop(1, 'rgba(255,80,20,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();

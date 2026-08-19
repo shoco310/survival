@@ -10,10 +10,36 @@ import {
   rotateIgnitionFactor,
   fireGrowthFactor,
 } from '../materials';
-import { rotateWeatherMultiplier, fireGrowthWeatherMultiplier, passiveFireWeatherDecay } from '../weather';
+import { rotateWeatherMultiplier, fireGrowthWeatherMultiplier, passiveFireWeatherDecay, WEATHER_HUD_TEXT } from '../weather';
 import { EQUIPMENT_META } from '../equipment';
+import { materialIconHtml } from '../materialIcons';
 import type { EquipmentId, Material, MaterialRole } from '../types';
 import type { ScreenContext, Unmount } from './context';
+
+/** 日没までの経過割合(0-1)から、ゲージの色（青白→黄→オレンジ→赤）を補間する */
+const SUNSET_GAUGE_STOPS: [number, string][] = [
+  [0, '#bfe4ff'],
+  [0.3, '#ffe066'],
+  [0.6, '#ff9d3d'],
+  [0.9, '#ff4d4d'],
+];
+function sunsetGaugeColor(ratio: number): string {
+  const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  for (let i = 0; i < SUNSET_GAUGE_STOPS.length - 1; i++) {
+    const [aRatio, aHex] = SUNSET_GAUGE_STOPS[i];
+    const [bRatio, bHex] = SUNSET_GAUGE_STOPS[i + 1];
+    if (ratio >= aRatio && ratio <= bRatio) {
+      const p = (ratio - aRatio) / (bRatio - aRatio);
+      const [ar, ag, ab] = hexToRgb(aHex);
+      const [br, bg, bb] = hexToRgb(bHex);
+      const r = Math.round(ar + (br - ar) * p);
+      const g = Math.round(ag + (bg - ag) * p);
+      const b = Math.round(ab + (bb - ab) * p);
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+  return SUNSET_GAUGE_STOPS[SUNSET_GAUGE_STOPS.length - 1][1];
+}
 
 type Phase = 'intro' | 'item_selection' | 'gathering' | 'rotate' | 'breath';
 
@@ -36,12 +62,23 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
   root.innerHTML = `
     <div class="screen field-screen">
       <div class="field-hud">
-        <span class="field-clock" id="field-clock">--:--</span>
-        <span class="field-sunset" id="field-sunset">日没まで --:--</span>
-        <button class="mute-btn" id="mute-btn">🔊</button>
-      </div>
-      <div class="field-stamina-track" id="stamina-track" style="display:none;">
-        <div class="field-stamina-fill" id="stamina-fill"></div>
+        <div class="hud-row hud-row-top">
+          <span class="field-clock" id="field-clock">--:--</span>
+          <span class="field-sunset" id="field-sunset">日没まで --:--</span>
+          <button class="mute-btn" id="mute-btn">🔊</button>
+        </div>
+        <div class="sunset-gauge-track"><div class="sunset-gauge-fill" id="sunset-gauge-fill"></div></div>
+        <div class="hud-row hud-row-mid">
+          <span class="weather-hud" id="weather-hud"></span>
+          <span class="fire-state-hud" id="fire-state-hud"></span>
+        </div>
+        <div class="heat-gauge-track"><div class="heat-gauge-fill" id="heat-gauge-fill"></div></div>
+        <div class="stamina-row">
+          <span class="stamina-label">♥ スタミナ</span>
+          <div class="field-stamina-track" id="stamina-track">
+            <div class="field-stamina-fill" id="stamina-fill"></div>
+          </div>
+        </div>
       </div>
 
       <div class="intro-banner" id="intro-banner"></div>
@@ -63,9 +100,13 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
 
   const clockEl = root.querySelector<HTMLElement>('#field-clock')!;
   const sunsetEl = root.querySelector<HTMLElement>('#field-sunset')!;
+  const sunsetGaugeFill = root.querySelector<HTMLElement>('#sunset-gauge-fill')!;
+  const weatherHudEl = root.querySelector<HTMLElement>('#weather-hud')!;
+  const fireStateHudEl = root.querySelector<HTMLElement>('#fire-state-hud')!;
+  const heatGaugeFill = root.querySelector<HTMLElement>('#heat-gauge-fill')!;
   const muteBtn = root.querySelector<HTMLButtonElement>('#mute-btn')!;
-  const staminaTrack = root.querySelector<HTMLElement>('#stamina-track')!;
   const staminaFill = root.querySelector<HTMLElement>('#stamina-fill')!;
+  const fieldScreenEl = root.querySelector<HTMLElement>('.field-screen')!;
   const introBanner = root.querySelector<HTMLElement>('#intro-banner')!;
   const fieldBanner = root.querySelector<HTMLElement>('#field-banner')!;
   const groundItems = root.querySelector<HTMLElement>('#ground-items')!;
@@ -200,7 +241,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
         (item) => `
       <button class="material-item" data-id="${item.material.id}"
         style="left:${item.left}%; top:${item.top}%; transform: translate(-50%,-50%) rotate(${item.rotation}deg);">
-        <span class="emoji">${item.material.emoji}</span>
+        ${materialIconHtml(item.material)}
       </button>`,
       )
       .join('');
@@ -262,10 +303,11 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
   // ================= STAGE SCENERY (materials near the drill) =================
   function renderStageScenery(): void {
     const c = center();
+    const stageScale = clamp(Math.min(window.innerWidth, window.innerHeight) / 720, 0.85, 1.6);
     const zones: Record<MaterialRole, { rMin: number; rMax: number }> = {
-      tinder: { rMin: 30, rMax: 58 },
-      kindling: { rMin: 62, rMax: 92 },
-      fuel: { rMin: 96, rMax: 128 },
+      tinder: { rMin: 46 * stageScale, rMax: 88 * stageScale },
+      kindling: { rMin: 96 * stageScale, rMax: 138 * stageScale },
+      fuel: { rMin: 144 * stageScale, rMax: 192 * stageScale },
     };
     stageMaterials.innerHTML = state.collectedMaterials
       .map((m, i) => {
@@ -275,7 +317,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
         const dx = Math.cos(angle) * r;
         const dy = Math.sin(angle) * r * 0.55;
         const top = clamp(c.y + dy, 130, window.innerHeight - 76);
-        return `<span class="stage-material" data-role="${m.role}" style="left:${c.x + dx}px; top:${top}px;">${m.emoji}</span>`;
+        return `<span class="stage-material" data-role="${m.role}" style="left:${c.x + dx}px; top:${top}px;">${materialIconHtml(m)}</span>`;
       })
       .join('');
   }
@@ -349,7 +391,6 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     state.fieldPhase = 'rotate';
     blowBtn.style.display = 'none';
     kindlingTray.style.display = 'none';
-    staminaTrack.style.display = '';
     renderStageScenery();
     ctx.setFireVisual({ phase: 'rotate', fire: 0, spinSpeed: 0, frictionHeat: heat });
     ctx.setAmbient(0);
@@ -378,7 +419,6 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     phase = 'breath';
     state.fieldPhase = 'breath';
     blowBtn.style.display = '';
-    staminaTrack.style.display = 'none';
     firstFlameShown = fire >= 8;
     campfireShown = fire >= 90;
     showBanner('🔥 火種ができた！', 1600, '長押しで息を吹きかけよう');
@@ -397,7 +437,7 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     kindlingTray.innerHTML = items
       .map(
         (m, i) => `<button class="kindling-chip" data-idx="${i}" data-used="0">
-          <span class="emoji">${m.emoji}</span>
+          ${materialIconHtml(m)}
         </button>`,
       )
       .join('');
@@ -513,36 +553,19 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
     const dt = Math.min(0.05, (t - lastT) / 1000);
     lastT = t;
 
-    updateHud();
-
     if (!finished) {
       if (phase === 'rotate') tickRotate(dt, t);
-      else if (phase === 'breath') tickBreath(dt, t);
+      else tickStamina(dt, false);
+      if (phase === 'breath') tickBreath(dt, t);
     }
+
+    updateHud();
 
     raf = requestAnimationFrame(loop);
   };
 
-  function updateHud(): void {
-    if (state.startTime == null || state.sunsetAt == null) return;
-    const elapsed = (Date.now() - state.startTime) / 1000;
-    const remaining = Math.max(0, GAME_CONFIG.sunset.budgetSeconds - elapsed);
-    const clockMinutesTotal =
-      GAME_CONFIG.sunset.startClockHour * 60 + GAME_CONFIG.sunset.startClockMinute + Math.floor(elapsed / 4);
-    const hh = Math.floor(clockMinutesTotal / 60) % 24;
-    const mm = clockMinutesTotal % 60;
-    clockEl.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-    sunsetEl.textContent = `日没まで ${formatClock(remaining)}`;
-    sunsetEl.classList.toggle('warn', remaining <= GAME_CONFIG.sunset.warningSeconds);
-  }
-
-  function tickRotate(dt: number, _t: number): void {
-    const idleFor = performance.now() - lastMoveT;
-    if (idleFor > 220) angularSpeedEma *= 0.9;
-    const effectiveSpeed = clamp(angularSpeedEma, 0, R.maxAngularSpeed);
-    const rotating = effectiveSpeed > R.minAngularSpeed;
-
-    // stamina
+  /** スタミナは摩擦フェーズだけでなく常時更新する（回転していなければ他フェーズでも回復する） */
+  function tickStamina(dt: number, rotating: boolean): void {
     const ST = GAME_CONFIG.stamina;
     if (rotating) {
       const drain = ST.drainPerSecondWhileRotating * (hasFood ? ST.foodDrainMultiplier : 1);
@@ -551,8 +574,60 @@ export function mountField(root: HTMLElement, ctx: ScreenContext): Unmount {
       staminaVal = clamp(staminaVal + ST.recoverPerSecondWhileIdle * dt, 0, 100);
     }
     state.stamina = staminaVal;
+    audioEngine.setFatigue(staminaVal < 30 ? clamp(1 - staminaVal / 30, 0, 1) : 0);
+  }
+
+  function fireStateLabel(): { icon: string; text: string } {
+    if (phase === 'rotate') return heat >= 55 ? { icon: '💨', text: '煙' } : { icon: '🪵', text: '摩擦' };
+    if (phase !== 'breath') return { icon: '🪵', text: '摩擦' };
+    if (fire < GAME_CONFIG.ember.fragileFireThreshold) return { icon: '✨', text: '火種' };
+    if (fire < 65) return { icon: '🔥', text: '小さな炎' };
+    return { icon: '🔥', text: '焚き火' };
+  }
+
+  function updateHud(): void {
+    if (state.startTime == null || state.sunsetAt == null) return;
+    const elapsed = (Date.now() - state.startTime) / 1000;
+    const budget = GAME_CONFIG.sunset.budgetSeconds;
+    const remaining = Math.max(0, budget - elapsed);
+    const elapsedRatio = clamp(elapsed / budget, 0, 1);
+    const clockMinutesTotal =
+      GAME_CONFIG.sunset.startClockHour * 60 + GAME_CONFIG.sunset.startClockMinute + Math.floor(elapsed / 4);
+    const hh = Math.floor(clockMinutesTotal / 60) % 24;
+    const mm = clockMinutesTotal % 60;
+    clockEl.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    sunsetEl.textContent = `日没まで ${formatClock(remaining)}`;
+    sunsetEl.classList.toggle('warn', remaining <= GAME_CONFIG.sunset.warningSeconds);
+    sunsetGaugeFill.style.width = `${remaining / budget * 100}%`;
+    const gaugeColor = sunsetGaugeColor(elapsedRatio);
+    sunsetGaugeFill.style.background = gaugeColor;
+    sunsetGaugeFill.style.boxShadow = `0 0 8px ${gaugeColor}`;
+
+    const w = WEATHER_HUD_TEXT[state.weather];
+    weatherHudEl.textContent = `${w.icon} ${w.text}`;
+
+    const fs = fireStateLabel();
+    fireStateHudEl.textContent = `${fs.icon} ${fs.text}`;
+
+    const gaugeVal = phase === 'rotate' ? heat : fire;
+    heatGaugeFill.style.width = `${gaugeVal}%`;
+
+    const ST = GAME_CONFIG.stamina;
     staminaFill.style.width = `${staminaVal}%`;
-    staminaFill.classList.toggle('tired', staminaVal < ST.tiredThreshold);
+    staminaFill.classList.toggle('half', staminaVal <= 50);
+    staminaFill.classList.toggle('low', staminaVal <= 30);
+    staminaFill.classList.toggle('critical', staminaVal <= ST.tiredThreshold * 0.6);
+    fieldScreenEl.classList.toggle('stamina-critical', staminaVal <= ST.tiredThreshold * 0.6);
+  }
+
+  function tickRotate(dt: number, _t: number): void {
+    const idleFor = performance.now() - lastMoveT;
+    if (idleFor > 220) angularSpeedEma *= 0.9;
+    const effectiveSpeed = clamp(angularSpeedEma, 0, R.maxAngularSpeed);
+    const rotating = effectiveSpeed > R.minAngularSpeed;
+
+    const ST = GAME_CONFIG.stamina;
+    tickStamina(dt, rotating);
     const staminaMultiplier = staminaVal < ST.tiredThreshold ? ST.exhaustedMultiplier + (staminaVal / ST.tiredThreshold) * (1 - ST.exhaustedMultiplier) : 1;
 
     const agg = aggregateByRole(state.collectedMaterials, state.wetness);

@@ -276,12 +276,12 @@ export const GAME_CONFIG = {
   },
 
   ranks: [
-    { min: 0, max: 19, title: 'LOST TOURIST', jp: '都会に帰ろう' },
+    { min: 0, max: 19, title: 'LOST TOURIST', jp: '迷子の旅行者' },
     { min: 20, max: 39, title: 'CAMP ROOKIE', jp: 'キャンプ初心者' },
-    { min: 40, max: 59, title: 'FIRE STARTER', jp: '火おこし見習い' },
-    { min: 60, max: 79, title: 'WILDERNESS SURVIVOR', jp: 'ワイルドサバイバー' },
-    { min: 80, max: 94, title: 'SURVIVAL EXPERT', jp: 'サバイバルエキスパート' },
-    { min: 95, max: 100, title: 'PRIMAL LEGEND', jp: '人類代表' },
+    { min: 40, max: 59, title: 'FIRE STARTER', jp: '火起こし職人' },
+    { min: 60, max: 79, title: 'WILDERNESS SURVIVOR', jp: '荒野のサバイバー' },
+    { min: 80, max: 94, title: 'SURVIVAL EXPERT', jp: 'サバイバルマスター' },
+    { min: 95, max: 100, title: 'PRIMAL LEGEND', jp: '原始の覇者' },
   ],
 
   share: {

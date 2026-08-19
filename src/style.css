@@ -287,10 +287,14 @@ body {
   pointer-events: auto;
 }
 
-.material-item .emoji {
-  font-size: 38px;
-  line-height: 1;
+.material-item .material-icon-svg {
+  width: 58px;
+  height: 58px;
   display: block;
+}
+
+.material-icon-svg {
+  overflow: visible;
 }
 
 .material-item .label {
@@ -351,9 +355,15 @@ body {
 
 .field-hud {
   display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  font-variant-numeric: tabular-nums;
 }
 
 .field-clock {
@@ -361,6 +371,7 @@ body {
   font-weight: 700;
   color: var(--ink-dim);
   letter-spacing: 0.04em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
 .field-sunset {
@@ -368,6 +379,7 @@ body {
   font-weight: 700;
   color: var(--ember-2);
   letter-spacing: 0.03em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
 .field-sunset.warn {
@@ -383,12 +395,63 @@ body {
   color: var(--ink-dim);
 }
 
-.field-stamina-track {
+.sunset-gauge-track,
+.heat-gauge-track {
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
-  margin: 8px 0 2px;
+}
+
+.sunset-gauge-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: #bfe4ff;
+  transition: width 0.6s linear, background-color 1.2s ease;
+}
+
+.weather-hud,
+.fire-state-hud {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.fire-state-hud {
+  color: var(--ember-2);
+}
+
+.heat-gauge-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff7a34, #ffcf7d);
+  transition: width 0.25s ease;
+}
+
+.stamina-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stamina-label {
+  font-size: 11px;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.field-stamina-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
 }
 
 .field-stamina-fill {
@@ -396,11 +459,33 @@ body {
   width: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #63c1ff, #8ef0d0);
-  transition: width 0.15s linear;
+  transition: width 0.15s linear, background-color 0.3s ease;
 }
 
-.field-stamina-fill.tired {
+.field-stamina-fill.half {
+  box-shadow: 0 0 6px rgba(255, 200, 120, 0.5);
+}
+
+.field-stamina-fill.low {
   background: linear-gradient(90deg, #ffb347, var(--danger));
+}
+
+.field-stamina-fill.critical {
+  animation: staminaBlink 1.1s ease-in-out infinite;
+}
+
+@keyframes staminaBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.field-screen.stamina-critical .field-stage {
+  animation: staminaVignette 1.6s ease-in-out infinite;
+}
+
+@keyframes staminaVignette {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(0.88); }
 }
 
 .intro-banner {
@@ -444,7 +529,7 @@ body {
 
 .field-stage {
   flex: 1;
-  min-height: 44vh;
+  min-height: 56vh;
   position: relative;
   touch-action: none;
   user-select: none;
@@ -460,8 +545,14 @@ body {
 .stage-material {
   position: fixed;
   transform: translate(-50%, -50%);
-  font-size: 30px;
+  display: block;
   filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
+}
+
+.stage-material .material-icon-svg {
+  width: 46px;
+  height: 46px;
+  display: block;
 }
 
 .ground-items {
@@ -519,9 +610,14 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   padding: 8px 12px;
-  font-size: 18px;
   touch-action: none;
   user-select: none;
+}
+
+.kindling-chip .material-icon-svg {
+  width: 26px;
+  height: 26px;
+  display: block;
 }
 
 .tutorial-hint {
