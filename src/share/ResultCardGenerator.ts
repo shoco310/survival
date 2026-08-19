@@ -4,6 +4,13 @@ import { EQUIPMENT_META } from '../equipment';
 import { GAME_CONFIG } from '../config';
 import type { EquipmentId, WeatherId } from '../types';
 
+export interface ResultCardScoreRow {
+  icon: string;
+  label: string;
+  value: number;
+  max: number;
+}
+
 export interface ResultCardParams {
   fireTimeMs: number;
   score: number;
@@ -13,6 +20,7 @@ export interface ResultCardParams {
   equipment: EquipmentId;
   comment: string;
   fireLevel: 0 | 1 | 2 | 3 | 4 | 5;
+  scoreRows: ResultCardScoreRow[];
 }
 
 const W = 1200;
@@ -179,48 +187,87 @@ export async function generateResultCard(params: ResultCardParams): Promise<Blob
 
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffb347';
-  ctx.font = `700 22px ${fontFamily}`;
-  ctx.fillText('S U R V I V E   T H E   N I G H T', left, 62);
-
-  ctx.fillStyle = '#d8d2e0';
   ctx.font = `700 20px ${fontFamily}`;
-  ctx.fillText('サバイバルスコア', left, 108);
+  ctx.fillText('S U R V I V E   T H E   N I G H T', left, 46);
 
   ctx.fillStyle = '#fff6e9';
-  ctx.font = `800 168px ${fontFamily}`;
-  ctx.fillText(String(params.score), left, 250);
+  ctx.font = `800 92px ${fontFamily}`;
+  ctx.fillText(String(params.score), left, 130);
   const scoreWidth = ctx.measureText(String(params.score)).width;
-  ctx.font = `700 44px ${fontFamily}`;
+  ctx.font = `700 30px ${fontFamily}`;
   ctx.fillStyle = '#cfc7d8';
-  ctx.fillText('/ 100', left + scoreWidth + 16, 250);
+  ctx.fillText('/ 100', left + scoreWidth + 12, 130);
 
   ctx.fillStyle = '#ffb347';
-  ctx.font = `800 42px ${fontFamily}`;
-  ctx.fillText(`🔥 ${params.rank}`, left, 306);
+  ctx.font = `800 30px ${fontFamily}`;
+  ctx.fillText(`🔥 ${params.rank}`, left, 168);
 
   ctx.fillStyle = '#a89fb8';
-  ctx.font = `700 18px ${fontFamily}`;
-  ctx.fillText('着火タイム', left, 358);
+  ctx.font = `700 15px ${fontFamily}`;
+  ctx.fillText('着火タイム', left, 200);
   ctx.fillStyle = '#ffffff';
-  ctx.font = `800 52px ${fontFamily}`;
-  ctx.fillText(formatTime(params.fireTimeMs), left, 404);
+  ctx.font = `800 15px ${fontFamily}`;
+  const timeLabelWidth = ctx.measureText('着火タイム').width;
+  ctx.font = `800 26px ${fontFamily}`;
+  ctx.fillText(formatTime(params.fireTimeMs), left + timeLabelWidth + 14, 200);
 
-  ctx.fillStyle = '#e7e1ee';
-  ctx.font = `500 22px ${fontFamily}`;
-  drawMultilineText(ctx, params.comment, left, 448, 30);
+  // スコア内訳：2列×3行のコンパクトなバーで、火起こし/素材選び/息/火の育て方/サバイバル力/時間を見せる
+  drawScoreBreakdown(ctx, params.scoreRows, left, 226, fontFamily);
 
   const weatherMeta = WEATHER_META[params.weather];
   const equipmentMeta = EQUIPMENT_META[params.equipment];
   ctx.fillStyle = '#b9b3c9';
-  ctx.font = `600 20px ${fontFamily}`;
-  ctx.fillText(`${weatherMeta.emoji} 天候：${weatherMeta.label}　${equipmentMeta.emoji} 装備：${equipmentMeta.label}`, left, 522);
+  ctx.font = `600 17px ${fontFamily}`;
+  ctx.fillText(`${weatherMeta.emoji} 天候：${weatherMeta.label}　${equipmentMeta.emoji} 装備：${equipmentMeta.label}`, left, 410);
+
+  ctx.fillStyle = '#e7e1ee';
+  ctx.font = `500 18px ${fontFamily}`;
+  drawMultilineText(ctx, params.comment, left, 442, 25);
 
   ctx.fillStyle = '#8f89a0';
-  ctx.font = `600 18px ${fontFamily}`;
+  ctx.font = `600 17px ${fontFamily}`;
   ctx.fillText('あなたは火を起こせるか？', left, 566);
   ctx.fillStyle = '#ffb347';
-  ctx.font = `700 20px ${fontFamily}`;
+  ctx.font = `700 19px ${fontFamily}`;
   ctx.fillText(GAME_CONFIG.share.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), left, 596);
 
   return canvasToBlob(canvas);
+}
+
+function drawScoreBreakdown(
+  ctx: CanvasRenderingContext2D,
+  rows: ResultCardScoreRow[],
+  left: number,
+  top: number,
+  fontFamily: string,
+): void {
+  const colW = 340;
+  const rowH = 40;
+  const barW = 150;
+
+  rows.forEach((row, i) => {
+    const col = Math.floor(i / 3);
+    const line = i % 3;
+    const x = left + col * colW;
+    const y = top + line * rowH;
+
+    ctx.font = `600 15px ${fontFamily}`;
+    ctx.fillStyle = '#cfc7d8';
+    ctx.fillText(`${row.icon} ${row.label}`, x, y + 13);
+
+    const trackY = y + 22;
+    const pct = row.max > 0 ? Math.min(1, row.value / row.max) : 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.beginPath();
+    ctx.roundRect(x, trackY, barW, 7, 3.5);
+    ctx.fill();
+    ctx.fillStyle = '#ffb347';
+    ctx.beginPath();
+    ctx.roundRect(x, trackY, barW * pct, 7, 3.5);
+    ctx.fill();
+
+    ctx.font = `700 13px ${fontFamily}`;
+    ctx.fillStyle = '#9c94ac';
+    ctx.fillText(`${row.value}/${row.max}`, x + barW + 10, trackY + 7);
+  });
 }

@@ -642,7 +642,7 @@ body {
 .field-controls {
   display: flex;
   justify-content: center;
-  padding: 4px 0 8px;
+  padding: 4px 0 58px;
 }
 
 .blow-btn {

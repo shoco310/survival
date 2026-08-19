@@ -118,6 +118,14 @@ export function mountResult(root: HTMLElement, ctx: ScreenContext): Unmount {
     equipment: state.equipment ?? 'food',
     comment: preset.comment,
     fireLevel: preset.fireLevel,
+    scoreRows: [
+      { icon: '🔥', label: '火起こし', value: score.firemaking, max: GAME_CONFIG.score.weights.firemaking },
+      { icon: '🌿', label: '素材選び', value: score.materialChoice, max: GAME_CONFIG.score.weights.materialChoice },
+      { icon: '🌬', label: '息のコントロール', value: score.breathControl, max: GAME_CONFIG.score.weights.breathControl },
+      { icon: '🪵', label: '火の育て方', value: score.fireManagement, max: GAME_CONFIG.score.weights.fireManagement },
+      { icon: '🏕', label: 'サバイバル力', value: score.survivalIQ, max: GAME_CONFIG.score.weights.survivalIQ },
+      { icon: '⏱', label: '時間', value: score.time, max: GAME_CONFIG.score.weights.time },
+    ],
   })
     .then((blob) => {
       cardBlob = blob;
