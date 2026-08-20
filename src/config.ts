@@ -263,16 +263,18 @@ export const GAME_CONFIG = {
     judgementBalanceWeight: 0.35,
     // FIREMAKING：想定される回転フェーズ所要時間(秒)。これより速いほど高得点。後戻り1回ごとに減点
     idealFrictionSeconds: 14,
-    frictionPenaltyPerSecond: 3,
+    frictionPenaltyPerSecond: 4, // 遅い回転がより減点されるようにし、速さでの差をつける
     resetPenalty: 12,
     // FIRE MANAGEMENT：薪を投入しなかった場合の中立点（任意行動なので大きく損はしない）
     kindlingNeutralScore: 55,
-    // SURVIVAL IQ：装備と天候の相性が良かった場合のボーナス
+    // SURVIVAL IQ：装備と天候の相性が良かった場合のボーナス。天候にぴったり合った選択
+    // （雨/嵐にSHELTER）だけが満点(100)に届き、それ以外の装備も後戻り0回なら現実的に
+    // 高得点へ届くようにする（以前はどの装備でも満点に届かず、スコアが70点台に張り付く一因だった）
     survivalIQBase: 55,
-    survivalIQSynergyBonus: 30,
-    survivalIQResetPenalty: 10,
+    survivalIQSynergyBonus: 45,
+    survivalIQResetPenalty: 15,
     // TIME：日没までの残り時間の割合が多いほど高得点
-    timeFullMarkRatio: 0.6, // 残り60%以上の余裕でクリアすればフルスコア
+    timeFullMarkRatio: 0.72, // 残り72%以上の余裕（≒早めのクリア）でフルスコア。以前は0.6でほぼ誰でも満点だった
   },
 
   ranks: [

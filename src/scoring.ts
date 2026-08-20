@@ -40,8 +40,11 @@ export function computeScore(state: GameState): ScoreBreakdown {
   const fireManagement = Math.round((clamp(fireManagementRaw, 0, 100) / 100) * w.fireManagement);
 
   // SURVIVAL IQ：装備と天候の相性、後戻りの少なさ
+  // どの装備を選んでも後戻り0回なら現実的に高得点へ届くようにしつつ、
+  // 天候にぴったり合った選択（雨/嵐にSHELTER）だけが満点に届く設計にする
   let synergy = 0;
   if (state.equipment === 'shelter' && (state.weather === 'rain' || state.weather === 'storm')) synergy = S.survivalIQSynergyBonus;
+  else if (state.equipment === 'shelter') synergy = S.survivalIQSynergyBonus * 0.3; // 天候が穏やかでも無駄choiceではない
   else if (state.equipment === 'food') synergy = S.survivalIQSynergyBonus * 0.6;
   else if (state.equipment === 'fire') synergy = S.survivalIQSynergyBonus * 0.4;
   const survivalIQRaw = S.survivalIQBase + synergy - state.rotateResetCount * S.survivalIQResetPenalty;
